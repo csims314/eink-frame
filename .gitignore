@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+firmware/eink_frame/secrets.h
+.DS_Store
+Thumbs.db

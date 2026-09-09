@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "mode": "rotate",
+  "interval_hours": 6,
+  "order": "upload",
+  "shuffle_seed": 1,
+  "epoch_unix": 1788930000,
+  "tz_name": "America/Chicago",
+  "tz_posix": "CST6CDT,M3.2.0,M11.1.0",
+  "quiet_hours": {
+    "start": "23:00",
+    "end": "07:00"
+  },
+  "min_refresh_minutes": 30,
+  "pins": [],
+  "show_now": null
+}
