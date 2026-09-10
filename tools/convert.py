@@ -260,7 +260,20 @@ def main() -> int:
         "count": len(entries),
         "images": entries,
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    # Only rewrite the manifest when something other than the timestamp changed, so an
+    # unchanged inbox produces no commit.
+    unchanged = False
+    if manifest_path.exists():
+        try:
+            old = json.loads(manifest_path.read_text(encoding="utf-8"))
+            strip = lambda m: {k: v for k, v in m.items() if k != "generated_at"}
+            unchanged = strip(old) == strip(manifest)
+        except (json.JSONDecodeError, AttributeError):
+            unchanged = False
+    if unchanged:
+        log("manifest unchanged")
+    else:
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     log(f"done: {converted} converted, {reused} reused, {removed} stale files removed, {failed} failed, {len(entries)} images in manifest")
     return 1 if failed else 0
 
