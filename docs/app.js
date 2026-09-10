@@ -48,6 +48,7 @@
   }
 
   function rememberPin(value) {
+    if (CFG.pin) return String(CFG.pin);
     const v = String(value || "").trim();
     if (v) { try { localStorage.setItem("framePin", v); } catch (e) { /* private mode */ } }
     return v;
@@ -55,8 +56,16 @@
 
   function prefillPins() {
     let v = "";
-    try { v = localStorage.getItem("framePin") || ""; } catch (e) { /* ignore */ }
-    for (const el of $$("input.pin")) el.value = v;
+    if (CFG.pin) {
+      v = String(CFG.pin);
+    } else {
+      try { v = localStorage.getItem("framePin") || ""; } catch (e) { /* ignore */ }
+    }
+    for (const el of $$("input.pin")) {
+      el.value = v;
+      const field = el.closest("label.field");
+      if (field) field.hidden = !!CFG.pin;
+    }
   }
 
   function targetSize() {
@@ -67,7 +76,8 @@
   function isLandscape() { const t = targetSize(); return t.w > t.h; }
 
   async function fetchJson(name) {
-    const res = await fetch(CFG.frameBase + name + "?t=" + Date.now(), { cache: "no-store" });
+    const base = (name === "schedule.json" && CFG.scheduleBase) ? CFG.scheduleBase : CFG.frameBase;
+    const res = await fetch(base + name + "?t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error(name + ": HTTP " + res.status);
     return res.json();
   }
@@ -673,23 +683,28 @@
   // ------------------------------------------------------------------ upload sheet
 
   // After a write, the Action needs a minute or two; poll the manifest until `predicate` holds.
-  let watchTimer = 0;
-  function watchManifest(predicate, doneMsg) {
-    clearInterval(watchTimer);
-    const started = Date.now();
-    watchTimer = setInterval(async () => {
-      try {
-        const m = await fetchJson("manifest.json");
-        if (predicate(m)) {
-          clearInterval(watchTimer);
-          await load();
-          if (doneMsg) toast(doneMsg, 4000);
-        } else if (Date.now() - started > 8 * 60000) {
-          clearInterval(watchTimer);
-        }
-      } catch (e) { /* transient; keep polling */ }
-    }, 20000);
+  // Phones pause timers in the background, so the visibility handler also runs a check.
+  let watch = null;
+  async function watchCheck() {
+    if (!watch) return;
+    if (Date.now() - watch.started > 10 * 60000) { watch = null; return; }
+    if (watch.busy) return;
+    watch.busy = true;
+    try {
+      const m = await fetchJson("manifest.json");
+      if (watch && watch.predicate(m)) {
+        const msg = watch.doneMsg;
+        watch = null;
+        await load();
+        if (msg) toast(msg, 4000);
+      }
+    } catch (e) { /* transient; keep polling */ } finally { if (watch) watch.busy = false; }
   }
+  function watchManifest(predicate, doneMsg) {
+    watch = { predicate, doneMsg, started: Date.now(), busy: false };
+    setTimeout(watchCheck, 3000);
+  }
+  setInterval(watchCheck, 15000);
 
   function renderUploadList() {
     const list = $("#upload-list");
@@ -794,7 +809,11 @@
     $("#btn-upload").addEventListener("click", () => { prefillPins(); renderUploadList(); openSheet("#dlg-upload"); });
     $("#btn-schedule").addEventListener("click", () => { if (!state.schedule) return; prefillPins(); openSchedule(); });
     $("#btn-settings").addEventListener("click", () => { if (!state.settings) return; prefillPins(); openSettings(); });
-    document.addEventListener("visibilitychange", () => { if (!document.hidden && state.manifest) render(); });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) return;
+      if (watch) watchCheck(); else if (state.manifest) load();
+    });
+    window.addEventListener("pageshow", (e) => { if (e.persisted && state.manifest) load(); });
     setInterval(() => { if (state.manifest) renderNow(); }, 60000);
     prefillPins();
     load();
