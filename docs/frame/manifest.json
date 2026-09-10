@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T01:33:30Z",
+  "generated_at": "2026-09-10T01:42:11Z",
   "rotation": 90,
   "rotation_portrait": 0,
   "panel": {
@@ -9,7 +9,7 @@
     "bin_size": 960000
   },
   "settings_hash": "eab888b7ca42",
-  "count": 4,
+  "count": 5,
   "images": [
     {
       "id": "a1011aa1f8c3",
@@ -82,6 +82,24 @@
       "preview": "img/2df0e823d826_preview.png",
       "width": 1600,
       "height": 1200
+    },
+    {
+      "id": "fe18c0477282",
+      "name": "smoke signal",
+      "caption": "",
+      "fit": "cover",
+      "orientation": "portrait",
+      "uploaded_at": "2026-09-10T01:41:52Z",
+      "source": "inbox/fe18c0477282.jpg",
+      "source_sha256": "fe18c0477282a10a4e8c2ffdfadab4c7bd4ce7ae0dcd87c1f7fe7601662f5bf3",
+      "settings_hash": "eab888b7ca42",
+      "bin": "img/fe18c0477282.bin",
+      "bin_sha256": "3da0071fa074c1e2663091b32b378b75700f3aadeb54db3e32477e6c348a1d7a",
+      "size": 960000,
+      "thumb": "img/fe18c0477282_thumb.jpg",
+      "preview": "img/fe18c0477282_preview.png",
+      "width": 1200,
+      "height": 1600
     }
   ]
 }
