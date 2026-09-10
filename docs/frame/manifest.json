@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T01:11:11Z",
+  "generated_at": "2026-09-10T01:11:41Z",
   "rotation": 90,
   "panel": {
     "width": 1200,
@@ -8,29 +8,12 @@
     "bin_size": 960000
   },
   "settings_hash": "ef40bb39fc41",
-  "count": 3,
+  "count": 2,
   "images": [
     {
-      "id": "testcard",
-      "name": "Test card",
-      "caption": "Six colors, gradients and orientation labels",
-      "fit": "cover",
-      "uploaded_at": "2026-09-09T23:00:00Z",
-      "source": "inbox/testcard.png",
-      "source_sha256": "c0c62ac4395d1bc4e9593bdc3284799a655b44565db8c3012bc84b9f97201cf5",
-      "settings_hash": "ef40bb39fc41",
-      "bin": "img/testcard.bin",
-      "bin_sha256": "ae3e51d2c24187fa64560816107261e7681696601439a6609819fcccc66386f8",
-      "size": 960000,
-      "thumb": "img/testcard_thumb.jpg",
-      "preview": "img/testcard_preview.png",
-      "width": 1600,
-      "height": 1200
-    },
-    {
       "id": "a1011aa1f8c3",
-      "name": "FKaAen9VkAQ89eY",
-      "caption": "FuelDepo",
+      "name": "FuelDepo",
+      "caption": "",
       "fit": "cover",
       "uploaded_at": "2026-09-10T00:54:15Z",
       "source": "inbox/a1011aa1f8c3.jpg",
@@ -46,8 +29,8 @@
     },
     {
       "id": "847384bed579",
-      "name": "FOQPQHIVIAIJCj4",
-      "caption": "Moebius",
+      "name": "Moebius",
+      "caption": "",
       "fit": "cover",
       "uploaded_at": "2026-09-10T01:03:59Z",
       "source": "inbox/847384bed579.jpg",
