@@ -75,9 +75,16 @@
 
   function isLandscape() { const t = targetSize(); return t.w > t.h; }
 
+  // fetch that gives up instead of hanging forever on a flaky connection.
+  function fetchWithTimeout(url, opts, ms) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), ms || 12000);
+    return fetch(url, Object.assign({}, opts, { signal: ctl.signal })).finally(() => clearTimeout(timer));
+  }
+
   async function fetchJson(name) {
     const base = (name === "schedule.json" && CFG.scheduleBase) ? CFG.scheduleBase : CFG.frameBase;
-    const res = await fetch(base + name + "?t=" + Date.now(), { cache: "no-store" });
+    const res = await fetchWithTimeout(base + name + "?t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error(name + ": HTTP " + res.status);
     return res.json();
   }
@@ -160,7 +167,7 @@
   async function fetchStatus() {
     if (!CFG.relayUrl) return;
     try {
-      const res = await fetch(CFG.relayUrl + "?action=status&t=" + Date.now(), { cache: "no-store", redirect: "follow" });
+      const res = await fetchWithTimeout(CFG.relayUrl + "?action=status&t=" + Date.now(), { cache: "no-store", redirect: "follow" }, 10000);
       const data = await res.json();
       if (data && data.ok && data.status && typeof data.status.showing === "string") {
         state.frameStatus = data.status;
@@ -193,9 +200,16 @@
     if (pending) {
       $("#now-label").textContent = target.reason === "converting" ? "Converting" : "Sending to the frame";
       $("#now-name").textContent = img ? img.name : "New picture";
-      $("#now-next").textContent = st && st.showing && state.byId.get(st.showing)
-        ? "Frame still shows " + state.byId.get(st.showing).name
-        : (target.reason === "converting" ? "Usually a minute or two" : "The frame checks every minute");
+      let detail;
+      if (target.reason === "converting") {
+        detail = "Usually a minute or two";
+      } else if (st && st.showing && state.byId.get(st.showing)) {
+        const ageMin = Math.max(0, Math.round((nowUnix() - (Number(st.at_unix) || 0)) / 60));
+        detail = "Frame still shows " + state.byId.get(st.showing).name + " · reported " + (ageMin < 1 ? "just now" : ageMin + " min ago");
+      } else {
+        detail = "The frame checks every minute";
+      }
+      $("#now-next").textContent = detail;
       return;
     }
     $("#now-label").textContent = "Now showing";
@@ -874,14 +888,19 @@
       if (watch) watchCheck(); else if (state.manifest) load();
     });
     window.addEventListener("pageshow", (e) => { if (e.persisted && state.manifest) load(); });
-    // Status: every 10 s while the frame is catching up, otherwise once a minute.
+    // Status: every 10 s while the frame is catching up, otherwise once a minute. One check at a
+    // time, and a failed or slow request never blocks the next one.
+    let ticking = false;
     setInterval(async () => {
-      if (!state.manifest) return;
-      const pending = $("#now").classList.contains("pending");
-      const stale = Date.now() - (state.statusAt || 0) > (pending ? 9000 : 55000);
-      if (stale) await fetchStatus();
-      renderNow();
-      if (pending) renderGallery();
+      if (!state.manifest || ticking) return;
+      ticking = true;
+      try {
+        const pending = $("#now").classList.contains("pending");
+        const stale = pending || Date.now() - (state.statusAt || 0) > 55000;
+        if (stale) await fetchStatus();
+        renderNow();
+        if (pending) renderGallery();
+      } catch (e) { /* keep ticking */ } finally { ticking = false; }
     }, 10000);
     prefillPins();
     load();
