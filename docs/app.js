@@ -178,24 +178,31 @@
 
   function renderNow() {
     const thumb = $("#now-thumb");
+    const bg = $("#now-bg");
     const box = $("#now");
+    const media = $(".now-media");
     const target = targetNow();
     const img = target.id ? state.byId.get(target.id) : null;
     const st = state.frameStatus;
     const pending = !!target.id && (target.reason === "converting" || (st && st.showing !== target.id));
     box.classList.toggle("pending", pending);
+    media.dataset.empty = String(!img);
     if (!img && target.reason !== "converting") {
       thumb.hidden = true;
-      $("#now-name").textContent = "Nothing to show yet";
+      bg.hidden = true;
+      $("#now-name").textContent = "Nothing on the frame yet";
       $("#now-next").textContent = "";
       $("#now-label").textContent = "Now showing";
       return;
     }
     if (img) {
-      thumb.src = CFG.frameBase + img.thumb;
+      const src = CFG.frameBase + img.thumb + "?v=" + (img.bin_sha256 || "").slice(0, 8);
+      if (thumb.getAttribute("src") !== src) { thumb.src = src; bg.src = src; }
       thumb.hidden = false;
+      bg.hidden = false;
     } else {
       thumb.hidden = true;
+      bg.hidden = true;
     }
     if (pending) {
       $("#now-label").textContent = target.reason === "converting" ? "Converting" : "Sending to the frame";
@@ -230,6 +237,7 @@
     const grid = $("#gallery");
     grid.innerHTML = "";
     $("#empty").hidden = state.images.length > 0;
+    $("#gallery-count").textContent = state.images.length ? state.images.length + (state.images.length === 1 ? " picture" : " pictures") : "";
     const target = targetNow();
     const st = state.frameStatus;
     const live = st && st.showing === target.id;
@@ -248,7 +256,7 @@
       if (img.id === target.id) {
         const b = document.createElement("span");
         b.className = "badge" + (st && !live ? " sending" : "");
-        b.textContent = st && !live ? "Sending…" : "Now";
+        b.textContent = st && !live ? "Sending" : "On the frame";
         card.appendChild(b);
       }
       if (pinned.has(img.id)) { const b = document.createElement("span"); b.className = "badge pinned"; b.textContent = "Pinned"; card.appendChild(b); }
