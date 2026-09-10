@@ -20,9 +20,12 @@
       <button id="btn-refresh" class="icon-btn" type="button" aria-label="Refresh" title="Refresh">&#8635;</button>
     </div>
     <section id="now" class="now" aria-live="polite">
-      <img id="now-thumb" alt="" hidden>
+      <div class="now-media">
+        <img id="now-thumb" alt="" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+      </div>
       <div class="now-text">
-        <div class="now-label">Now showing</div>
+        <div id="now-label" class="now-label">Now showing</div>
         <div id="now-name" class="now-name">Loading&hellip;</div>
         <div id="now-next" class="now-next"></div>
       </div>

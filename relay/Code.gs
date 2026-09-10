@@ -15,7 +15,26 @@ var PROPS = PropertiesService.getScriptProperties();
 var MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 
 function doGet(e) {
+  var action = e && e.parameter && e.parameter.action;
+  if (action === "status") {
+    var raw = PROPS.getProperty("STATUS");
+    return json_({ ok: true, status: raw ? JSON.parse(raw) : null });
+  }
   return json_({ ok: true, service: "eink-frame relay", repo: PROPS.getProperty("REPO") || null });
+}
+
+// The frame posts what it is showing; the website reads it back with ?action=status.
+function setStatus_(body) {
+  var status = {
+    showing: String(body.showing || ""),
+    event: String(body.event || ""),
+    at_unix: Number(body.at_unix) || Math.floor(Date.now() / 1000),
+    rssi: isNaN(Number(body.rssi)) ? null : Number(body.rssi),
+    ip: String(body.ip || ""),
+    received_at: new Date().toISOString(),
+  };
+  PROPS.setProperty("STATUS", JSON.stringify(status));
+  return { ok: true };
 }
 
 function doPost(e) {
@@ -34,6 +53,8 @@ function doPost(e) {
         return json_(putJson_("docs/frame/settings.json", body.settings, "Update frame settings"));
       case "delete":
         return json_(deleteImage_(body.id));
+      case "status":
+        return json_(setStatus_(body));
       default:
         return json_({ ok: false, error: "Unknown action." });
     }

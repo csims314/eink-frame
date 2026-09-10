@@ -229,6 +229,24 @@ static String sha256Hex(const uint8_t* data, size_t len) {
   return String(hex);
 }
 
+// Tells the relay what the panel is showing. Apps Script answers a POST with a redirect, so any
+// 2xx or 3xx means it was received.
+static void reportStatus(const String& showing, const char* event) {
+  NetworkClientSecure client;
+  client.setInsecure();
+  HTTPClient http;
+  http.setTimeout(FRAME_HTTP_TIMEOUT_MS);
+  http.setReuse(false);
+  if (!http.begin(client, FRAME_RELAY_URL)) return;
+  http.addHeader("Content-Type", "text/plain;charset=utf-8");
+  String body = "{\"action\":\"status\",\"pin\":\"" FRAME_PIN "\",\"showing\":\"" + showing +
+                "\",\"event\":\"" + event + "\",\"at_unix\":" + String((unsigned long)time(nullptr)) +
+                ",\"rssi\":" + String(WiFi.RSSI()) + ",\"ip\":\"" + WiFi.localIP().toString() + "\"}";
+  int code = http.POST(body);
+  http.end();
+  logf("status: %s reported (%d)", event, code);
+}
+
 // ---------------------------------------------------------------- parsing
 
 static bool parseSchedule(const String& json, Schedule& s) {
@@ -311,6 +329,11 @@ static void showImage(const uint8_t* buf) {
 static bool poll() {
   if (!connectWiFi()) return false;
   if (!syncTime()) return false;
+  static bool bootReported = false;
+  if (!bootReported) {
+    bootReported = true;
+    reportStatus(prefs.getString("current", ""), "boot");
+  }
 
   static CachedFile scheduleFile, manifestFile;
   if (!fetchFresh("schedule.json", scheduleFile)) return false;
@@ -376,6 +399,7 @@ static bool poll() {
   prefs.putString("current", due.c_str());
   prefs.putULong("last_refresh", (uint32_t)time(nullptr));
   logf("now showing %s", due.c_str());
+  reportStatus(String(due.c_str()), "displayed");
   return true;
 }
 

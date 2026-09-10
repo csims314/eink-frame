@@ -122,7 +122,7 @@
   async function load() {
     try {
       const [manifest, schedule, settings] = await Promise.all([
-        fetchJson("manifest.json"), fetchJson("schedule.json"), fetchJson("settings.json"),
+        fetchJson("manifest.json"), fetchJson("schedule.json"), fetchJson("settings.json"), fetchStatus(),
       ]);
       state.manifest = manifest;
       state.schedule = schedule;
@@ -144,18 +144,62 @@
     return S.dueImage(state.schedule, ids, nowUnix(), state.schedule.tz_name);
   }
 
+  // The picture the frame should be showing right now, or the one it's been asked to show that
+  // hasn't been converted yet.
+  function targetNow() {
+    const due = dueNow();
+    const sn = state.schedule && state.schedule.show_now;
+    if (sn && sn.image_id && !state.byId.has(sn.image_id)) {
+      const len = S.slotSeconds(state.schedule);
+      const at = Number(sn.at_unix) || 0;
+      if (at <= nowUnix() && (len <= 0 || nowUnix() < at + len)) return { id: sn.image_id, reason: "converting" };
+    }
+    return due;
+  }
+
+  async function fetchStatus() {
+    if (!CFG.relayUrl) return;
+    try {
+      const res = await fetch(CFG.relayUrl + "?action=status&t=" + Date.now(), { cache: "no-store", redirect: "follow" });
+      const data = await res.json();
+      if (data && data.ok && data.status && typeof data.status.showing === "string") {
+        state.frameStatus = data.status;
+        state.statusAt = Date.now();
+      }
+    } catch (e) { /* status is a nicety; ignore */ }
+  }
+
   function renderNow() {
     const thumb = $("#now-thumb");
-    const due = dueNow();
-    const img = due.id ? state.byId.get(due.id) : null;
-    if (!img) {
+    const box = $("#now");
+    const target = targetNow();
+    const img = target.id ? state.byId.get(target.id) : null;
+    const st = state.frameStatus;
+    const pending = !!target.id && (target.reason === "converting" || (st && st.showing !== target.id));
+    box.classList.toggle("pending", pending);
+    if (!img && target.reason !== "converting") {
       thumb.hidden = true;
       $("#now-name").textContent = "Nothing to show yet";
       $("#now-next").textContent = "";
+      $("#now-label").textContent = "Now showing";
       return;
     }
-    thumb.src = CFG.frameBase + img.thumb;
-    thumb.hidden = false;
+    if (img) {
+      thumb.src = CFG.frameBase + img.thumb;
+      thumb.hidden = false;
+    } else {
+      thumb.hidden = true;
+    }
+    if (pending) {
+      $("#now-label").textContent = target.reason === "converting" ? "Converting" : "Sending to the frame";
+      $("#now-name").textContent = img ? img.name : "New picture";
+      $("#now-next").textContent = st && st.showing && state.byId.get(st.showing)
+        ? "Frame still shows " + state.byId.get(st.showing).name
+        : (target.reason === "converting" ? "Usually a minute or two" : "The frame checks every minute");
+      return;
+    }
+    $("#now-label").textContent = "Now showing";
+    const due = target;
     const why = { "pin-date": "pinned", "pin-slot": "pinned", "show-now": "requested", single: "stays on" }[due.reason];
     $("#now-name").textContent = img.name + (why ? " · " + why : "");
     const ids = state.images.map((i) => i.id);
@@ -172,7 +216,9 @@
     const grid = $("#gallery");
     grid.innerHTML = "";
     $("#empty").hidden = state.images.length > 0;
-    const due = dueNow().id;
+    const target = targetNow();
+    const st = state.frameStatus;
+    const live = st && st.showing === target.id;
     const pinned = new Set((state.schedule.pins || []).map((p) => p.image_id));
     const portrait = !isLandscape();
     for (const img of state.images) {
@@ -185,7 +231,12 @@
       pic.alt = img.name;
       pic.src = CFG.frameBase + img.thumb + "?v=" + (img.bin_sha256 || "").slice(0, 8);
       card.appendChild(pic);
-      if (img.id === due) { const b = document.createElement("span"); b.className = "badge"; b.textContent = "Now"; card.appendChild(b); }
+      if (img.id === target.id) {
+        const b = document.createElement("span");
+        b.className = "badge" + (st && !live ? " sending" : "");
+        b.textContent = st && !live ? "Sending…" : "Now";
+        card.appendChild(b);
+      }
       if (pinned.has(img.id)) { const b = document.createElement("span"); b.className = "badge pinned"; b.textContent = "Pinned"; card.appendChild(b); }
       const name = document.createElement("div");
       name.className = "name";
@@ -830,7 +881,15 @@
       if (watch) watchCheck(); else if (state.manifest) load();
     });
     window.addEventListener("pageshow", (e) => { if (e.persisted && state.manifest) load(); });
-    setInterval(() => { if (state.manifest) renderNow(); }, 60000);
+    // Status: every 10 s while the frame is catching up, otherwise once a minute.
+    setInterval(async () => {
+      if (!state.manifest) return;
+      const pending = $("#now").classList.contains("pending");
+      const stale = Date.now() - (state.statusAt || 0) > (pending ? 9000 : 55000);
+      if (stale) await fetchStatus();
+      renderNow();
+      if (pending) renderGallery();
+    }, 10000);
     prefillPins();
     load();
   }

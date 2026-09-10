@@ -10,6 +10,10 @@
 #define FRAME_API_BASE "https://api.github.com/repos/csims314/eink-frame/contents/docs/frame/"
 #define FRAME_API_REF "main"
 
+// The frame reports what it is showing to the relay so the website can show a live status.
+#define FRAME_RELAY_URL "https://script.google.com/macros/s/AKfycbyGXkX-nRN_U0fLYwGbZMiEV2sM2aoTcBm8TGdVz0blZiWhm-F3_fkJxFYWb04oIE1ZTA/exec"
+#define FRAME_PIN "1234"
+
 #define FRAME_POLL_MINUTES 1            // how often to check schedule.json + manifest.json (304s are free)
 #define FRAME_MIN_REFRESH_FLOOR_MIN 5   // spacing for scheduled changes; the schedule may raise it, never lower it
 #define FRAME_URGENT_FLOOR_MIN 1        // spacing for a deliberate "show now" or a fresh upload
