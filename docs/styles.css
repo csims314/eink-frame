@@ -47,8 +47,7 @@ img { display: block; max-width: 100%; }
 /* Header */
 .top {
   position: sticky; top: 0; z-index: 5;
-  background: color-mix(in srgb, var(--bg) 88%, transparent);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
   padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
 }
@@ -95,8 +94,7 @@ main { padding: 12px 12px 0; }
 .toolbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
   display: flex; gap: 8px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--card) 92%, transparent);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: var(--card);
   border-top: 1px solid var(--line);
 }
 .tb {
