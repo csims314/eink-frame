@@ -252,7 +252,7 @@
       }
       toast("Deleted. The gallery updates in a minute or two.", 4000);
       closeSheet("#dlg-image");
-      setTimeout(load, 90000);
+      watchManifest((m) => !(m.images || []).some((i) => i.id === id), "Picture removed.");
     } catch (e) {
       toast(e.message || String(e), 5000);
     } finally {
@@ -408,6 +408,7 @@
 
   const crop = {
     bitmap: null, name: "", index: 0, total: 0,
+    shape: "landscape", // crop box shape: "landscape" (4:3) or "portrait" (3:4)
     scale: 1, cx: 0, cy: 0, rot: 0, // rot = source rotation in degrees
     vw: 0, vh: 0, dpr: 1,
     pointers: new Map(), pinchDist: 0, pinchScale: 1, pinchMid: null, dragLast: null,
@@ -466,12 +467,26 @@
     ctx.restore();
   }
 
+  function cropAspect() {
+    return crop.shape === "portrait" ? { w: 3, h: 4 } : { w: 4, h: 3 };
+  }
+
+  function setShapeUI() {
+    for (const btn of $$("#crop-shape button")) btn.setAttribute("aria-pressed", String(btn.dataset.shape === crop.shape));
+    const frameLandscape = isLandscape();
+    const shapeLandscape = crop.shape !== "portrait";
+    $("#crop-shape-hint").textContent = frameLandscape === shapeLandscape
+      ? "Fills the whole frame."
+      : (shapeLandscape ? "Shown with white bands above and below." : "Shown with white bands on both sides.");
+  }
+
   function cropLayout() {
-    const target = targetSize();
+    const a = cropAspect();
     const box = $("#crop-viewport");
-    const width = Math.min(box.clientWidth || 320, 640);
+    const maxH = Math.max(240, Math.min(window.innerHeight * 0.5, 640));
+    const width = Math.min(box.clientWidth || 320, 640, Math.floor(maxH * a.w / a.h));
     crop.vw = width;
-    crop.vh = Math.round(width * target.h / target.w);
+    crop.vh = Math.round(width * a.h / a.w);
     crop.dpr = Math.min(window.devicePixelRatio || 1, 2);
     const canvas = $("#crop-canvas");
     canvas.style.width = crop.vw + "px";
@@ -558,21 +573,47 @@
       const target = Math.exp(lo + (Number(e.target.value) / 1000) * (hi - lo));
       cropZoomAt(target / crop.scale, crop.vw / 2, crop.vh / 2);
     });
+    for (const btn of $$("#crop-shape button")) {
+      btn.addEventListener("click", () => {
+        if (crop.shape === btn.dataset.shape) return;
+        crop.shape = btn.dataset.shape;
+        setShapeUI();
+        cropReset("cover");
+      });
+    }
     $("#crop-fill").addEventListener("click", () => cropReset("cover"));
     $("#crop-fit").addEventListener("click", () => cropReset("contain"));
-    $("#crop-rotate").addEventListener("click", () => { crop.rot = (crop.rot + 90) % 360; cropReset("cover"); });
+    $("#crop-rotate").addEventListener("click", () => {
+      crop.rot = (crop.rot + 90) % 360;
+      const d = cropDims();
+      crop.shape = d.ih > d.iw ? "portrait" : "landscape";
+      setShapeUI();
+      cropReset("cover");
+    });
     $("#crop-skip").addEventListener("click", () => finishCrop(null));
     $("#crop-use").addEventListener("click", () => finishCrop(cropExport()));
     window.addEventListener("resize", () => { if ($("#dlg-crop").open) { const s = crop.scale / cropCoverScale(); cropLayout(); crop.scale = cropCoverScale() * s; cropClamp(); cropRender(); } });
   }
 
+  // Renders the crop at the frame's full resolution. A picture whose shape doesn't match the
+  // frame's orientation is centered on white: 900x1200 inside 1600x1200, or 1200x900 inside 1200x1600.
   function cropExport() {
     const target = targetSize();
+    const frameLandscape = target.w > target.h;
+    const shapeLandscape = crop.shape !== "portrait";
+    let cw = target.w, ch = target.h;
+    if (frameLandscape !== shapeLandscape) {
+      if (frameLandscape) { ch = target.h; cw = Math.round(ch * 3 / 4); }
+      else { cw = target.w; ch = Math.round(cw * 3 / 4); }
+    }
     const out = document.createElement("canvas");
     out.width = target.w;
     out.height = target.h;
     const ctx = out.getContext("2d");
-    cropDrawInto(ctx, target.w / crop.vw);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, target.w, target.h);
+    ctx.translate(Math.round((target.w - cw) / 2), Math.round((target.h - ch) / 2));
+    cropDrawInto(ctx, cw / crop.vw);
     return new Promise((resolve) => out.toBlob((blob) => resolve(blob), "image/jpeg", CFG.jpegQuality || 0.9));
   }
 
@@ -615,6 +656,8 @@
     crop.bitmap = bitmap;
     crop.name = file.name;
     crop.rot = 0;
+    crop.shape = bitmap.height > bitmap.width ? "portrait" : "landscape";
+    setShapeUI();
     $("#crop-counter").textContent = total > 1 ? (index + 1) + " of " + total : "";
     $("#crop-title").textContent = file.name;
     openSheet("#dlg-crop");
@@ -628,6 +671,25 @@
   }
 
   // ------------------------------------------------------------------ upload sheet
+
+  // After a write, the Action needs a minute or two; poll the manifest until `predicate` holds.
+  let watchTimer = 0;
+  function watchManifest(predicate, doneMsg) {
+    clearInterval(watchTimer);
+    const started = Date.now();
+    watchTimer = setInterval(async () => {
+      try {
+        const m = await fetchJson("manifest.json");
+        if (predicate(m)) {
+          clearInterval(watchTimer);
+          await load();
+          if (doneMsg) toast(doneMsg, 4000);
+        } else if (Date.now() - started > 8 * 60000) {
+          clearInterval(watchTimer);
+        }
+      } catch (e) { /* transient; keep polling */ }
+    }, 20000);
+  }
 
   function renderUploadList() {
     const list = $("#upload-list");
@@ -680,22 +742,24 @@
       const caption = $("#upload-caption").value.trim();
       const pin = $("#upload-pin").value;
       let done = 0;
+      const newIds = new Set();
       try {
         for (const item of state.uploads) {
           text.textContent = "Uploading " + (done + 1) + " of " + state.uploads.length;
           bar.style.width = Math.round((done / state.uploads.length) * 100) + "%";
           const base64 = item.dataUrl.split(",")[1];
-          await relay("upload", { name: item.name.replace(/\.[^.]+$/, ""), caption, fit: "cover", mime: "image/jpeg", data: base64 }, pin);
+          const res = await relay("upload", { name: item.name.replace(/\.[^.]+$/, ""), caption, fit: "cover", mime: "image/jpeg", data: base64 }, pin);
+          if (res.id) newIds.add(res.id);
           done++;
         }
         bar.style.width = "100%";
         text.textContent = "Done";
-        toast("Uploaded. Converting takes a minute or two, then it appears here.", 6000);
+        toast("Uploaded. Converting takes a minute or two; the gallery updates by itself.", 6000);
         state.uploads = [];
         renderUploadList();
         $("#upload-caption").value = "";
         closeSheet("#dlg-upload");
-        setTimeout(load, 120000);
+        watchManifest((m) => (m.images || []).some((i) => newIds.has(i.id)), "Your pictures are in.");
       } catch (err) {
         toast(err.message || String(err), 6000);
         state.uploads = state.uploads.slice(done);

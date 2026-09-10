@@ -181,6 +181,11 @@ input[type="text"], input[type="password"], input[type="time"], input[type="date
 .pin-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
 .pin-item button { min-height: 36px; border: 0; background: transparent; color: var(--danger); cursor: pointer; font-weight: 600; }
 
+/* Segmented control */
+.segmented { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 6px 0 4px; }
+.segmented button { flex: 1; min-height: 40px; border: 0; background: transparent; cursor: pointer; font-weight: 600; }
+.segmented button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
 /* Crop tool */
 .crop-head { display: flex; align-items: baseline; justify-content: space-between; }
 .crop-counter { color: var(--muted); font-size: 0.85rem; }

@@ -9,6 +9,8 @@
   <meta name="mobile-web-app-capable" content="yes">
   <title>Frame</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='3' fill='%23222'/%3E%3Crect x='6' y='8' width='20' height='16' fill='%23f6f4ef'/%3E%3Ccircle cx='12' cy='14' r='3' fill='%23e5c100'/%3E%3Cpath d='M6 24l7-7 4 4 3-3 6 6z' fill='%232f7d4a'/%3E%3C/svg%3E">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -238,6 +240,11 @@
         <span id="crop-counter" class="crop-counter"></span>
       </div>
       <p id="crop-title" class="hint"></p>
+      <div id="crop-shape" class="segmented" role="group" aria-label="Picture shape">
+        <button type="button" data-shape="landscape" aria-pressed="true">Landscape</button>
+        <button type="button" data-shape="portrait" aria-pressed="false">Portrait</button>
+      </div>
+      <p id="crop-shape-hint" class="hint"></p>
       <div id="crop-viewport" class="crop-viewport">
         <canvas id="crop-canvas" aria-label="Crop preview. Drag to move, pinch or scroll to zoom."></canvas>
       </div>
