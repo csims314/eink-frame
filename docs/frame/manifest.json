@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T01:45:04Z",
+  "generated_at": "2026-09-10T01:58:19Z",
   "rotation": 90,
   "rotation_portrait": 0,
   "panel": {
@@ -9,7 +9,7 @@
     "bin_size": 960000
   },
   "settings_hash": "eab888b7ca42",
-  "count": 4,
+  "count": 5,
   "images": [
     {
       "id": "a1011aa1f8c3",
@@ -80,6 +80,24 @@
       "size": 960000,
       "thumb": "img/fe18c0477282_thumb.jpg",
       "preview": "img/fe18c0477282_preview.png",
+      "width": 1200,
+      "height": 1600
+    },
+    {
+      "id": "06161898c3ad",
+      "name": "London",
+      "caption": "",
+      "fit": "cover",
+      "orientation": "portrait",
+      "uploaded_at": "2026-09-10T01:57:58Z",
+      "source": "inbox/06161898c3ad.jpg",
+      "source_sha256": "06161898c3adeb4e9ae002e4e70dc549ca0acb4cb7ebda5bc1e7884ef687c3ec",
+      "settings_hash": "eab888b7ca42",
+      "bin": "img/06161898c3ad.bin",
+      "bin_sha256": "6b4be35cd6a4850f451d50c3ba3ebd3d3916995093214c6d86ebd27a8151735f",
+      "size": 960000,
+      "thumb": "img/06161898c3ad_thumb.jpg",
+      "preview": "img/06161898c3ad_preview.png",
       "width": 1200,
       "height": 1600
     }
