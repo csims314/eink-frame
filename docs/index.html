@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111111" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Frame</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='5' width='26' height='22' rx='3' fill='%23222'/%3E%3Crect x='6' y='8' width='20' height='16' fill='%23f6f4ef'/%3E%3Ccircle cx='12' cy='14' r='3' fill='%23e5c100'/%3E%3Cpath d='M6 24l7-7 4 4 3-3 6 6z' fill='%232f7d4a'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <h1 id="site-title">Frame</h1>
+      <button id="btn-refresh" class="icon-btn" type="button" aria-label="Refresh" title="Refresh">&#8635;</button>
+    </div>
+    <section id="now" class="now" aria-live="polite">
+      <img id="now-thumb" alt="" hidden>
+      <div class="now-text">
+        <div class="now-label">Now showing</div>
+        <div id="now-name" class="now-name">Loading&hellip;</div>
+        <div id="now-next" class="now-next"></div>
+      </div>
+    </section>
+  </header>
+
+  <main>
+    <p id="notice" class="notice" hidden></p>
+    <section id="gallery" class="gallery" aria-label="Pictures"></section>
+    <p id="empty" class="empty" hidden>No pictures yet. Tap <strong>Add</strong> to upload the first one.</p>
+  </main>
+
+  <nav class="toolbar" aria-label="Actions">
+    <button id="btn-upload" type="button" class="tb primary"><span class="tb-icon">+</span><span>Add</span></button>
+    <button id="btn-schedule" type="button" class="tb"><span class="tb-icon">&#9201;</span><span>Schedule</span></button>
+    <button id="btn-settings" type="button" class="tb"><span class="tb-icon">&#9881;</span><span>Frame</span></button>
+  </nav>
+
+  <!-- Upload sheet -->
+  <dialog id="dlg-upload" class="sheet">
+    <form id="form-upload" method="dialog" class="sheet-body">
+      <div class="sheet-handle"></div>
+      <h2>Add pictures</h2>
+      <label class="file-drop">
+        <input id="upload-files" type="file" accept="image/*" multiple>
+        <span id="upload-files-label">Tap to choose pictures</span>
+      </label>
+      <div id="upload-list" class="upload-list"></div>
+      <p class="hint">Each picture opens in a crop screen: drag to move, pinch or scroll to zoom.</p>
+      <label class="field">
+        <span>Caption <small>(optional)</small></span>
+        <input id="upload-caption" type="text" maxlength="120" autocomplete="off" placeholder="Beach, July 2026">
+      </label>
+      <label class="field">
+        <span>PIN</span>
+        <input id="upload-pin" class="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="Upload PIN">
+      </label>
+      <div id="upload-progress" class="progress" hidden><div class="bar"></div><span class="progress-text"></span></div>
+      <div class="sheet-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" id="upload-submit" class="btn primary">Upload</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Image detail sheet -->
+  <dialog id="dlg-image" class="sheet">
+    <div class="sheet-body">
+      <div class="sheet-handle"></div>
+      <div class="detail-media">
+        <img id="img-view" alt="">
+        <button id="img-toggle" type="button" class="chip" aria-pressed="false">Show as the frame sees it</button>
+      </div>
+      <h2 id="img-name" class="detail-name"></h2>
+      <p id="img-meta" class="detail-meta"></p>
+      <p id="img-pins" class="detail-pins"></p>
+      <label class="field">
+        <span>PIN</span>
+        <input id="img-pin-code" class="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+      </label>
+      <div class="detail-actions">
+        <button id="img-show-now" type="button" class="btn primary">Show on the frame now</button>
+        <button id="img-pin" type="button" class="btn">Pin to a time&hellip;</button>
+        <button id="img-delete" type="button" class="btn danger">Delete</button>
+      </div>
+      <form id="form-pin" class="pin-form" hidden>
+        <h3>Pin this picture</h3>
+        <label class="field">
+          <span>When</span>
+          <select id="pin-type">
+            <option value="slot">Certain days and hours</option>
+            <option value="date">A whole day (a date)</option>
+          </select>
+        </label>
+        <div id="pin-slot-fields">
+          <div class="days" id="pin-days">
+            <label><input type="checkbox" value="0"><span>Su</span></label>
+            <label><input type="checkbox" value="1"><span>Mo</span></label>
+            <label><input type="checkbox" value="2"><span>Tu</span></label>
+            <label><input type="checkbox" value="3"><span>We</span></label>
+            <label><input type="checkbox" value="4"><span>Th</span></label>
+            <label><input type="checkbox" value="5"><span>Fr</span></label>
+            <label><input type="checkbox" value="6"><span>Sa</span></label>
+          </div>
+          <div class="row">
+            <label class="field"><span>From</span><input id="pin-start" type="time" value="07:00"></label>
+            <label class="field"><span>Until</span><input id="pin-end" type="time" value="12:00"></label>
+          </div>
+        </div>
+        <div id="pin-date-fields" hidden>
+          <label class="field"><span>Date</span><input id="pin-date" type="date"></label>
+        </div>
+        <div class="sheet-actions">
+          <button type="button" class="btn" id="pin-cancel">Back</button>
+          <button type="submit" class="btn primary">Save pin</button>
+        </div>
+      </form>
+      <div class="sheet-actions">
+        <button type="button" class="btn" data-close>Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Schedule sheet -->
+  <dialog id="dlg-schedule" class="sheet">
+    <form id="form-schedule" method="dialog" class="sheet-body">
+      <div class="sheet-handle"></div>
+      <h2>Schedule</h2>
+      <label class="field">
+        <span>Mode</span>
+        <select id="sch-mode">
+          <option value="rotate">Rotate through the pictures</option>
+          <option value="single">Stay on one picture</option>
+        </select>
+      </label>
+      <div id="sch-rotate-fields">
+        <label class="field">
+          <span>Change picture every</span>
+          <select id="sch-interval">
+            <option value="1">hour</option>
+            <option value="3">3 hours</option>
+            <option value="6">6 hours</option>
+            <option value="12">12 hours</option>
+            <option value="24">day</option>
+            <option value="168">week</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Order</span>
+          <select id="sch-order">
+            <option value="upload">In upload order</option>
+            <option value="shuffle">Shuffled</option>
+          </select>
+        </label>
+      </div>
+      <div id="sch-single-fields" hidden>
+        <label class="field">
+          <span>Picture</span>
+          <select id="sch-single"></select>
+        </label>
+      </div>
+      <fieldset class="field">
+        <legend>Quiet hours <small>(no refreshes)</small></legend>
+        <div class="row">
+          <label class="field"><span>From</span><input id="sch-quiet-start" type="time"></label>
+          <label class="field"><span>Until</span><input id="sch-quiet-end" type="time"></label>
+        </div>
+      </fieldset>
+      <label class="field">
+        <span>Minimum time between refreshes</span>
+        <select id="sch-min-refresh">
+          <option value="5">5 minutes</option>
+          <option value="15">15 minutes</option>
+          <option value="30">30 minutes</option>
+          <option value="60">1 hour</option>
+        </select>
+      </label>
+      <div id="sch-pins" class="pin-list"></div>
+      <label class="field">
+        <span>PIN</span>
+        <input id="sch-pin" class="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+      </label>
+      <div class="sheet-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save schedule</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Frame settings sheet -->
+  <dialog id="dlg-settings" class="sheet">
+    <form id="form-settings" method="dialog" class="sheet-body">
+      <div class="sheet-handle"></div>
+      <h2>Frame</h2>
+      <label class="field">
+        <span>Orientation</span>
+        <select id="set-rotation">
+          <option value="90">Landscape</option>
+          <option value="270">Landscape, flipped</option>
+          <option value="0">Portrait</option>
+          <option value="180">Portrait, flipped</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Color boost</span>
+        <select id="set-saturation">
+          <option value="1">None</option>
+          <option value="1.25">Some (recommended)</option>
+          <option value="1.5">Strong</option>
+        </select>
+      </label>
+      <label class="check">
+        <input id="set-autocontrast" type="checkbox">
+        <span>Auto-contrast</span>
+      </label>
+      <p class="hint">Changing these re-converts every picture, which takes a few minutes.</p>
+      <label class="field">
+        <span>PIN</span>
+        <input id="set-pin" class="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN">
+      </label>
+      <p id="status-line" class="hint"></p>
+      <div class="sheet-actions">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Crop sheet -->
+  <dialog id="dlg-crop" class="sheet crop">
+    <div class="sheet-body">
+      <div class="sheet-handle"></div>
+      <div class="crop-head">
+        <h2>Crop to fit the frame</h2>
+        <span id="crop-counter" class="crop-counter"></span>
+      </div>
+      <p id="crop-title" class="hint"></p>
+      <div id="crop-viewport" class="crop-viewport">
+        <canvas id="crop-canvas" aria-label="Crop preview. Drag to move, pinch or scroll to zoom."></canvas>
+      </div>
+      <label class="field zoom">
+        <span>Zoom</span>
+        <input id="crop-zoom" type="range" min="0" max="1000" value="0">
+      </label>
+      <div class="crop-tools">
+        <button id="crop-fill" type="button" class="btn">Fill</button>
+        <button id="crop-fit" type="button" class="btn">Whole picture</button>
+        <button id="crop-rotate" type="button" class="btn">Rotate</button>
+      </div>
+      <div class="sheet-actions">
+        <button id="crop-skip" type="button" class="btn">Skip</button>
+        <button id="crop-use" type="button" class="btn primary">Use this crop</button>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="config.js"></script>
+  <script src="schedule.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

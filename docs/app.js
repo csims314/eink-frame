@@ -1,0 +1,740 @@
+// app.js — gallery, upload with drag/zoom crop, schedule and frame settings.
+// Reads frame/*.json (same origin) and writes through the Apps Script relay (config.js).
+(function () {
+  "use strict";
+
+  const CFG = window.FRAME_CONFIG || {};
+  const S = window.FrameSchedule;
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const state = {
+    manifest: null,
+    schedule: null,
+    settings: null,
+    images: [],
+    byId: new Map(),
+    detailId: null,
+    detailPreview: false,
+    uploads: [], // {name, blob, dataUrl}
+  };
+
+  // ------------------------------------------------------------------ helpers
+
+  let toastTimer = 0;
+  function toast(msg, ms) {
+    const el = $("#toast");
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; }, ms || 2800);
+  }
+
+  function notice(msg) {
+    const el = $("#notice");
+    el.textContent = msg || "";
+    el.hidden = !msg;
+  }
+
+  function nowUnix() { return Math.floor(Date.now() / 1000); }
+
+  function fmtWhen(unix, tz) {
+    const opts = { hour: "numeric", minute: "2-digit" };
+    const d = new Date(unix * 1000);
+    const sameDay = (unix - nowUnix()) < 20 * 3600 && new Date().getDate() === d.getDate();
+    if (!sameDay) opts.weekday = "short";
+    try { return new Intl.DateTimeFormat(undefined, { ...opts, timeZone: tz || undefined }).format(d); }
+    catch (e) { return new Intl.DateTimeFormat(undefined, opts).format(d); }
+  }
+
+  function rememberPin(value) {
+    const v = String(value || "").trim();
+    if (v) { try { localStorage.setItem("framePin", v); } catch (e) { /* private mode */ } }
+    return v;
+  }
+
+  function prefillPins() {
+    let v = "";
+    try { v = localStorage.getItem("framePin") || ""; } catch (e) { /* ignore */ }
+    for (const el of $$("input.pin")) el.value = v;
+  }
+
+  function targetSize() {
+    const rot = Number((state.settings && state.settings.rotation) ?? 90);
+    return (rot === 90 || rot === 270) ? { w: 1600, h: 1200 } : { w: 1200, h: 1600 };
+  }
+
+  function isLandscape() { const t = targetSize(); return t.w > t.h; }
+
+  async function fetchJson(name) {
+    const res = await fetch(CFG.frameBase + name + "?t=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error(name + ": HTTP " + res.status);
+    return res.json();
+  }
+
+  async function relay(action, payload, pin) {
+    if (!CFG.relayUrl) throw new Error("This site isn't connected to its relay yet, so changes can't be saved.");
+    const code = rememberPin(pin);
+    if (!code) throw new Error("Enter the PIN first.");
+    const res = await fetch(CFG.relayUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(Object.assign({ action, pin: code }, payload)),
+      redirect: "follow",
+    });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { throw new Error("Unexpected reply from the relay."); }
+    if (!res.ok || !data.ok) throw new Error(data.error || ("Relay error " + res.status));
+    return data;
+  }
+
+  function openSheet(id) { const d = $(id); if (!d.open) d.showModal(); }
+  function closeSheet(id) { const d = $(id); if (d.open) d.close(); }
+
+  function setBusy(btn, busy, label) {
+    btn.disabled = busy;
+    if (busy) { btn.dataset.label = btn.textContent; btn.textContent = label || "Saving…"; }
+    else if (btn.dataset.label) { btn.textContent = btn.dataset.label; }
+  }
+
+  function pinsFor(id) { return (state.schedule.pins || []).filter((p) => p.image_id === id); }
+
+  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function describePin(p) {
+    if (p.date) return "on " + p.date;
+    const days = (p.days || []).map((d) => DAY_NAMES[d]).join(", ") || "no days";
+    return days + " " + p.start + "–" + p.end;
+  }
+
+  // ------------------------------------------------------------------ load + render
+
+  async function load() {
+    try {
+      const [manifest, schedule, settings] = await Promise.all([
+        fetchJson("manifest.json"), fetchJson("schedule.json"), fetchJson("settings.json"),
+      ]);
+      state.manifest = manifest;
+      state.schedule = schedule;
+      state.settings = settings;
+      state.images = manifest.images || [];
+      state.byId = new Map(state.images.map((i) => [i.id, i]));
+      render();
+      notice(CFG.relayUrl ? "" : "Viewing only: the upload relay isn't configured yet.");
+    } catch (e) {
+      $("#now-name").textContent = "Couldn't load the gallery";
+      $("#now-next").textContent = e.message || String(e);
+    }
+  }
+
+  function render() { renderNow(); renderGallery(); }
+
+  function dueNow() {
+    const ids = state.images.map((i) => i.id);
+    return S.dueImage(state.schedule, ids, nowUnix(), state.schedule.tz_name);
+  }
+
+  function renderNow() {
+    const thumb = $("#now-thumb");
+    const due = dueNow();
+    const img = due.id ? state.byId.get(due.id) : null;
+    if (!img) {
+      thumb.hidden = true;
+      $("#now-name").textContent = "Nothing to show yet";
+      $("#now-next").textContent = "";
+      return;
+    }
+    thumb.src = CFG.frameBase + img.thumb;
+    thumb.hidden = false;
+    const why = { "pin-date": "pinned", "pin-slot": "pinned", "show-now": "requested", single: "stays on" }[due.reason];
+    $("#now-name").textContent = img.name + (why ? " · " + why : "");
+    const ids = state.images.map((i) => i.id);
+    const next = S.nextChange(state.schedule, ids, nowUnix(), state.schedule.tz_name);
+    if (next) {
+      const nextImg = state.byId.get(S.dueImage(state.schedule, ids, next, state.schedule.tz_name).id);
+      $("#now-next").textContent = "Next: " + (nextImg ? nextImg.name : "?") + " at " + fmtWhen(next, state.schedule.tz_name);
+    } else {
+      $("#now-next").textContent = state.images.length > 1 ? "No change scheduled" : "";
+    }
+  }
+
+  function renderGallery() {
+    const grid = $("#gallery");
+    grid.innerHTML = "";
+    $("#empty").hidden = state.images.length > 0;
+    const due = dueNow().id;
+    const pinned = new Set((state.schedule.pins || []).map((p) => p.image_id));
+    const portrait = !isLandscape();
+    for (const img of state.images) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "card" + (portrait ? " portrait" : "");
+      card.dataset.id = img.id;
+      const pic = document.createElement("img");
+      pic.loading = "lazy";
+      pic.alt = img.name;
+      pic.src = CFG.frameBase + img.thumb + "?v=" + (img.bin_sha256 || "").slice(0, 8);
+      card.appendChild(pic);
+      if (img.id === due) { const b = document.createElement("span"); b.className = "badge"; b.textContent = "Now"; card.appendChild(b); }
+      if (pinned.has(img.id)) { const b = document.createElement("span"); b.className = "badge pinned"; b.textContent = "Pinned"; card.appendChild(b); }
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = img.name;
+      card.appendChild(name);
+      card.addEventListener("click", () => openImage(img.id));
+      grid.appendChild(card);
+    }
+  }
+
+  // ------------------------------------------------------------------ image detail
+
+  function openImage(id) {
+    const img = state.byId.get(id);
+    if (!img) return;
+    state.detailId = id;
+    state.detailPreview = false;
+    updateDetailMedia();
+    $("#img-name").textContent = img.name;
+    const when = img.uploaded_at ? new Date(img.uploaded_at).toLocaleDateString() : "";
+    $("#img-meta").textContent = [img.caption, when && ("Added " + when), img.width + "×" + img.height].filter(Boolean).join(" · ");
+    const pins = pinsFor(id);
+    $("#img-pins").textContent = pins.length ? "Pinned " + pins.map(describePin).join("; ") : "";
+    $("#form-pin").hidden = true;
+    $("#img-delete").textContent = "Delete";
+    delete $("#img-delete").dataset.armed;
+    openSheet("#dlg-image");
+  }
+
+  function updateDetailMedia() {
+    const img = state.byId.get(state.detailId);
+    if (!img) return;
+    const view = $("#img-view");
+    view.src = CFG.frameBase + (state.detailPreview ? img.preview : img.thumb) + "?v=" + (img.bin_sha256 || "").slice(0, 8);
+    $("#img-toggle").setAttribute("aria-pressed", String(state.detailPreview));
+    $("#img-toggle").textContent = state.detailPreview ? "Showing the frame's version" : "Show as the frame sees it";
+  }
+
+  async function saveSchedule(schedule, pin, btn, doneMsg) {
+    setBusy(btn, true);
+    try {
+      await relay("schedule", { schedule }, pin);
+      state.schedule = schedule;
+      render();
+      toast(doneMsg || "Saved. The frame follows within about 5 minutes.", 4000);
+      return true;
+    } catch (e) {
+      toast(e.message || String(e), 5000);
+      return false;
+    } finally {
+      setBusy(btn, false);
+    }
+  }
+
+  async function showNow(id, btn) {
+    const schedule = Object.assign({}, state.schedule, { show_now: { image_id: id, at_unix: nowUnix() } });
+    const ok = await saveSchedule(schedule, $("#img-pin-code").value, btn, "Requested. The frame switches within about 5 minutes.");
+    if (ok) closeSheet("#dlg-image");
+  }
+
+  async function deleteImage(id, btn) {
+    if (!btn.dataset.armed) {
+      btn.dataset.armed = "1";
+      btn.textContent = "Tap again to delete";
+      setTimeout(() => { delete btn.dataset.armed; btn.textContent = "Delete"; }, 4000);
+      return;
+    }
+    setBusy(btn, true, "Deleting…");
+    try {
+      await relay("delete", { id }, $("#img-pin-code").value);
+      const pins = (state.schedule.pins || []).filter((p) => p.image_id !== id);
+      if (pins.length !== (state.schedule.pins || []).length) {
+        await relay("schedule", { schedule: Object.assign({}, state.schedule, { pins }) }, $("#img-pin-code").value);
+      }
+      toast("Deleted. The gallery updates in a minute or two.", 4000);
+      closeSheet("#dlg-image");
+      setTimeout(load, 90000);
+    } catch (e) {
+      toast(e.message || String(e), 5000);
+    } finally {
+      setBusy(btn, false);
+    }
+  }
+
+  function wireDetail() {
+    $("#img-toggle").addEventListener("click", () => { state.detailPreview = !state.detailPreview; updateDetailMedia(); });
+    $("#img-show-now").addEventListener("click", (e) => showNow(state.detailId, e.currentTarget));
+    $("#img-delete").addEventListener("click", (e) => deleteImage(state.detailId, e.currentTarget));
+    $("#img-pin").addEventListener("click", () => { $("#form-pin").hidden = false; $("#form-pin").scrollIntoView({ behavior: "smooth", block: "end" }); });
+    $("#pin-cancel").addEventListener("click", () => { $("#form-pin").hidden = true; });
+    $("#pin-type").addEventListener("change", (e) => {
+      const date = e.target.value === "date";
+      $("#pin-slot-fields").hidden = date;
+      $("#pin-date-fields").hidden = !date;
+    });
+    $("#form-pin").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = state.detailId;
+      let pin;
+      if ($("#pin-type").value === "date") {
+        if (!$("#pin-date").value) { toast("Pick a date."); return; }
+        pin = { image_id: id, date: $("#pin-date").value };
+      } else {
+        const days = $$("#pin-days input:checked").map((el) => Number(el.value));
+        if (!days.length) { toast("Pick at least one day."); return; }
+        if (!$("#pin-start").value || !$("#pin-end").value) { toast("Set the hours."); return; }
+        pin = { image_id: id, days, start: $("#pin-start").value, end: $("#pin-end").value };
+      }
+      const pins = (state.schedule.pins || []).concat([pin]);
+      const btn = e.target.querySelector("button[type=submit]");
+      const ok = await saveSchedule(Object.assign({}, state.schedule, { pins }), $("#img-pin-code").value, btn, "Pinned.");
+      if (ok) { $("#form-pin").hidden = true; openImage(id); }
+    });
+  }
+
+  // ------------------------------------------------------------------ schedule sheet
+
+  function openSchedule() {
+    const s = state.schedule;
+    $("#sch-mode").value = s.mode === "single" ? "single" : "rotate";
+    const interval = String(s.interval_hours || 6);
+    const sel = $("#sch-interval");
+    if (![...sel.options].some((o) => o.value === interval)) sel.add(new Option(interval + " hours", interval));
+    sel.value = interval;
+    $("#sch-order").value = s.order === "shuffle" ? "shuffle" : "upload";
+    const single = $("#sch-single");
+    single.innerHTML = "";
+    for (const img of state.images) single.add(new Option(img.name, img.id));
+    if (s.single_image_id) single.value = s.single_image_id;
+    $("#sch-quiet-start").value = (s.quiet_hours && s.quiet_hours.start) || "";
+    $("#sch-quiet-end").value = (s.quiet_hours && s.quiet_hours.end) || "";
+    $("#sch-min-refresh").value = String(s.min_refresh_minutes || 30);
+    toggleScheduleMode();
+    renderPinList();
+    openSheet("#dlg-schedule");
+  }
+
+  function toggleScheduleMode() {
+    const single = $("#sch-mode").value === "single";
+    $("#sch-rotate-fields").hidden = single;
+    $("#sch-single-fields").hidden = !single;
+  }
+
+  function renderPinList() {
+    const box = $("#sch-pins");
+    box.innerHTML = "";
+    const pins = state.schedule.pins || [];
+    if (!pins.length) return;
+    const h = document.createElement("h3");
+    h.textContent = "Pinned pictures";
+    box.appendChild(h);
+    pins.forEach((p, index) => {
+      const row = document.createElement("div");
+      row.className = "pin-item";
+      const img = state.byId.get(p.image_id);
+      const text = document.createElement("span");
+      text.textContent = (img ? img.name : p.image_id) + " · " + describePin(p);
+      const rm = document.createElement("button");
+      rm.type = "button";
+      rm.textContent = "Remove";
+      rm.addEventListener("click", () => {
+        state.schedule = Object.assign({}, state.schedule, { pins: pins.filter((_, i) => i !== index) });
+        renderPinList();
+        toast("Removed here. Save the schedule to apply.");
+      });
+      row.append(text, rm);
+      box.appendChild(row);
+    });
+  }
+
+  function wireSchedule() {
+    $("#sch-mode").addEventListener("change", toggleScheduleMode);
+    $("#form-schedule").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const s = Object.assign({}, state.schedule);
+      s.mode = $("#sch-mode").value;
+      s.interval_hours = Number($("#sch-interval").value);
+      s.order = $("#sch-order").value;
+      if (s.mode === "single") s.single_image_id = $("#sch-single").value;
+      const qs = $("#sch-quiet-start").value, qe = $("#sch-quiet-end").value;
+      s.quiet_hours = (qs && qe) ? { start: qs, end: qe } : { start: "", end: "" };
+      s.min_refresh_minutes = Number($("#sch-min-refresh").value);
+      if (!s.epoch_unix) s.epoch_unix = nowUnix();
+      const btn = e.target.querySelector("button[type=submit]");
+      const ok = await saveSchedule(s, $("#sch-pin").value, btn);
+      if (ok) closeSheet("#dlg-schedule");
+    });
+  }
+
+  // ------------------------------------------------------------------ settings sheet
+
+  function openSettings() {
+    const st = state.settings || {};
+    $("#set-rotation").value = String(st.rotation ?? 90);
+    const sat = String((st.enhance && st.enhance.saturation) ?? 1.25);
+    const sel = $("#set-saturation");
+    if (![...sel.options].some((o) => o.value === sat)) sel.add(new Option(sat, sat));
+    sel.value = sat;
+    $("#set-autocontrast").checked = !!(st.enhance && st.enhance.autocontrast);
+    const m = state.manifest || {};
+    $("#status-line").textContent = (m.count || 0) + " pictures · last converted " + (m.generated_at ? new Date(m.generated_at).toLocaleString() : "never");
+    openSheet("#dlg-settings");
+  }
+
+  function wireSettings() {
+    $("#form-settings").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const st = Object.assign({}, state.settings);
+      st.rotation = Number($("#set-rotation").value);
+      st.enhance = Object.assign({}, st.enhance, {
+        saturation: Number($("#set-saturation").value),
+        autocontrast: $("#set-autocontrast").checked,
+      });
+      const btn = e.target.querySelector("button[type=submit]");
+      setBusy(btn, true);
+      try {
+        await relay("settings", { settings: st }, $("#set-pin").value);
+        state.settings = st;
+        toast("Saved. Every picture is being re-converted; give it a few minutes.", 5000);
+        closeSheet("#dlg-settings");
+      } catch (err) {
+        toast(err.message || String(err), 5000);
+      } finally {
+        setBusy(btn, false);
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------ crop tool
+
+  const crop = {
+    bitmap: null, name: "", index: 0, total: 0,
+    scale: 1, cx: 0, cy: 0, rot: 0, // rot = source rotation in degrees
+    vw: 0, vh: 0, dpr: 1,
+    pointers: new Map(), pinchDist: 0, pinchScale: 1, pinchMid: null, dragLast: null,
+    resolve: null,
+  };
+
+  function cropDims() {
+    const swap = crop.rot === 90 || crop.rot === 270;
+    return { iw: swap ? crop.bitmap.height : crop.bitmap.width, ih: swap ? crop.bitmap.width : crop.bitmap.height };
+  }
+
+  function cropCoverScale() { const d = cropDims(); return Math.max(crop.vw / d.iw, crop.vh / d.ih); }
+  function cropContainScale() { const d = cropDims(); return Math.min(crop.vw / d.iw, crop.vh / d.ih); }
+
+  function cropClamp() {
+    const d = cropDims();
+    const min = cropContainScale(), max = cropCoverScale() * 6;
+    crop.scale = Math.min(max, Math.max(min, crop.scale));
+    const halfW = d.iw * crop.scale / 2, halfH = d.ih * crop.scale / 2;
+    crop.cx = d.iw * crop.scale <= crop.vw + 0.5 ? crop.vw / 2 : Math.min(halfW, Math.max(crop.vw - halfW, crop.cx));
+    crop.cy = d.ih * crop.scale <= crop.vh + 0.5 ? crop.vh / 2 : Math.min(halfH, Math.max(crop.vh - halfH, crop.cy));
+    const slider = $("#crop-zoom");
+    const lo = Math.log(min), hi = Math.log(max);
+    slider.value = String(Math.round(((Math.log(crop.scale) - lo) / (hi - lo)) * 1000));
+  }
+
+  function cropDrawInto(ctx, k) {
+    // k = output pixels per viewport CSS pixel
+    ctx.save();
+    ctx.scale(k, k);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, crop.vw, crop.vh);
+    ctx.translate(crop.cx, crop.cy);
+    ctx.rotate(crop.rot * Math.PI / 180);
+    ctx.scale(crop.scale, crop.scale);
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(crop.bitmap, -crop.bitmap.width / 2, -crop.bitmap.height / 2);
+    ctx.restore();
+  }
+
+  function cropRender() {
+    const canvas = $("#crop-canvas");
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    cropDrawInto(ctx, crop.dpr);
+    // rule-of-thirds guides
+    ctx.save();
+    ctx.scale(crop.dpr, crop.dpr);
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 3; i++) {
+      ctx.beginPath(); ctx.moveTo(crop.vw * i / 3, 0); ctx.lineTo(crop.vw * i / 3, crop.vh); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, crop.vh * i / 3); ctx.lineTo(crop.vw, crop.vh * i / 3); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function cropLayout() {
+    const target = targetSize();
+    const box = $("#crop-viewport");
+    const width = Math.min(box.clientWidth || 320, 640);
+    crop.vw = width;
+    crop.vh = Math.round(width * target.h / target.w);
+    crop.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const canvas = $("#crop-canvas");
+    canvas.style.width = crop.vw + "px";
+    canvas.style.height = crop.vh + "px";
+    canvas.width = Math.round(crop.vw * crop.dpr);
+    canvas.height = Math.round(crop.vh * crop.dpr);
+  }
+
+  function cropReset(mode) {
+    cropLayout();
+    crop.scale = mode === "contain" ? cropContainScale() : cropCoverScale();
+    crop.cx = crop.vw / 2;
+    crop.cy = crop.vh / 2;
+    cropClamp();
+    cropRender();
+  }
+
+  function cropZoomAt(factor, px, py) {
+    const before = crop.scale;
+    crop.scale = before * factor;
+    const min = cropContainScale(), max = cropCoverScale() * 6;
+    crop.scale = Math.min(max, Math.max(min, crop.scale));
+    const real = crop.scale / before;
+    crop.cx = px + (crop.cx - px) * real;
+    crop.cy = py + (crop.cy - py) * real;
+    cropClamp();
+    cropRender();
+  }
+
+  function cropPointerPos(e) {
+    const rect = $("#crop-canvas").getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function wireCrop() {
+    const canvas = $("#crop-canvas");
+    canvas.addEventListener("pointerdown", (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      crop.pointers.set(e.pointerId, cropPointerPos(e));
+      if (crop.pointers.size === 1) crop.dragLast = cropPointerPos(e);
+      if (crop.pointers.size === 2) {
+        const [a, b] = [...crop.pointers.values()];
+        crop.pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+        crop.dragLast = null;
+      }
+      e.preventDefault();
+    });
+    canvas.addEventListener("pointermove", (e) => {
+      if (!crop.pointers.has(e.pointerId)) return;
+      crop.pointers.set(e.pointerId, cropPointerPos(e));
+      if (crop.pointers.size === 1 && crop.dragLast) {
+        const p = cropPointerPos(e);
+        crop.cx += p.x - crop.dragLast.x;
+        crop.cy += p.y - crop.dragLast.y;
+        crop.dragLast = p;
+        cropClamp();
+        cropRender();
+      } else if (crop.pointers.size === 2) {
+        const [a, b] = [...crop.pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (crop.pinchDist > 0 && dist > 0) {
+          cropZoomAt(dist / crop.pinchDist, (a.x + b.x) / 2, (a.y + b.y) / 2);
+        }
+        crop.pinchDist = dist;
+      }
+      e.preventDefault();
+    });
+    const up = (e) => {
+      crop.pointers.delete(e.pointerId);
+      if (crop.pointers.size === 1) crop.dragLast = [...crop.pointers.values()][0];
+      else crop.dragLast = null;
+      crop.pinchDist = 0;
+    };
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", up);
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const p = cropPointerPos(e);
+      cropZoomAt(Math.exp(-e.deltaY * 0.0015), p.x, p.y);
+    }, { passive: false });
+    $("#crop-zoom").addEventListener("input", (e) => {
+      const min = cropContainScale(), max = cropCoverScale() * 6;
+      const lo = Math.log(min), hi = Math.log(max);
+      const target = Math.exp(lo + (Number(e.target.value) / 1000) * (hi - lo));
+      cropZoomAt(target / crop.scale, crop.vw / 2, crop.vh / 2);
+    });
+    $("#crop-fill").addEventListener("click", () => cropReset("cover"));
+    $("#crop-fit").addEventListener("click", () => cropReset("contain"));
+    $("#crop-rotate").addEventListener("click", () => { crop.rot = (crop.rot + 90) % 360; cropReset("cover"); });
+    $("#crop-skip").addEventListener("click", () => finishCrop(null));
+    $("#crop-use").addEventListener("click", () => finishCrop(cropExport()));
+    window.addEventListener("resize", () => { if ($("#dlg-crop").open) { const s = crop.scale / cropCoverScale(); cropLayout(); crop.scale = cropCoverScale() * s; cropClamp(); cropRender(); } });
+  }
+
+  function cropExport() {
+    const target = targetSize();
+    const out = document.createElement("canvas");
+    out.width = target.w;
+    out.height = target.h;
+    const ctx = out.getContext("2d");
+    cropDrawInto(ctx, target.w / crop.vw);
+    return new Promise((resolve) => out.toBlob((blob) => resolve(blob), "image/jpeg", CFG.jpegQuality || 0.9));
+  }
+
+  function finishCrop(result) {
+    const done = crop.resolve;
+    crop.resolve = null;
+    if (done) done(result);
+  }
+
+  async function loadBitmap(file) {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch (e) {
+      // Fallback for browsers without ImageBitmap options: decode through an <img>.
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const el = new Image();
+          el.onload = () => resolve(el);
+          el.onerror = () => reject(new Error("Couldn't read " + file.name));
+          el.src = url;
+        });
+        return await createImageBitmap(img);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+  }
+
+  // Shows the crop screen for one file; resolves with a JPEG blob or null when skipped.
+  async function cropFile(file, index, total) {
+    let bitmap = await loadBitmap(file);
+    const longest = Math.max(bitmap.width, bitmap.height);
+    if (longest > 3200) {
+      const k = 3200 / longest;
+      const small = await createImageBitmap(bitmap, { resizeWidth: Math.round(bitmap.width * k), resizeHeight: Math.round(bitmap.height * k), resizeQuality: "high" });
+      bitmap.close && bitmap.close();
+      bitmap = small;
+    }
+    crop.bitmap = bitmap;
+    crop.name = file.name;
+    crop.rot = 0;
+    $("#crop-counter").textContent = total > 1 ? (index + 1) + " of " + total : "";
+    $("#crop-title").textContent = file.name;
+    openSheet("#dlg-crop");
+    await new Promise((r) => requestAnimationFrame(r));
+    cropReset("cover");
+    const blob = await new Promise((resolve) => { crop.resolve = resolve; });
+    closeSheet("#dlg-crop");
+    bitmap.close && bitmap.close();
+    crop.bitmap = null;
+    return blob ? await blob : null;
+  }
+
+  // ------------------------------------------------------------------ upload sheet
+
+  function renderUploadList() {
+    const list = $("#upload-list");
+    list.innerHTML = "";
+    for (const item of state.uploads) {
+      const pic = document.createElement("img");
+      pic.src = item.dataUrl;
+      pic.alt = item.name;
+      pic.title = item.name;
+      list.appendChild(pic);
+    }
+    $("#upload-files-label").textContent = state.uploads.length
+      ? state.uploads.length + " picture" + (state.uploads.length > 1 ? "s" : "") + " ready · tap to add more"
+      : "Tap to choose pictures";
+    $("#upload-submit").disabled = state.uploads.length === 0;
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(new Error("Couldn't read the picture."));
+      r.readAsDataURL(blob);
+    });
+  }
+
+  function wireUpload() {
+    $("#upload-files").addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = "";
+      for (let i = 0; i < files.length; i++) {
+        try {
+          const blob = await cropFile(files[i], i, files.length);
+          if (blob) state.uploads.push({ name: files[i].name, blob, dataUrl: await blobToDataUrl(blob) });
+        } catch (err) {
+          toast(err.message || String(err), 4000);
+        }
+      }
+      renderUploadList();
+    });
+    $("#form-upload").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!state.uploads.length) return;
+      const btn = $("#upload-submit");
+      const progress = $("#upload-progress");
+      const bar = progress.querySelector(".bar");
+      const text = progress.querySelector(".progress-text");
+      setBusy(btn, true, "Uploading…");
+      progress.hidden = false;
+      const caption = $("#upload-caption").value.trim();
+      const pin = $("#upload-pin").value;
+      let done = 0;
+      try {
+        for (const item of state.uploads) {
+          text.textContent = "Uploading " + (done + 1) + " of " + state.uploads.length;
+          bar.style.width = Math.round((done / state.uploads.length) * 100) + "%";
+          const base64 = item.dataUrl.split(",")[1];
+          await relay("upload", { name: item.name.replace(/\.[^.]+$/, ""), caption, fit: "cover", mime: "image/jpeg", data: base64 }, pin);
+          done++;
+        }
+        bar.style.width = "100%";
+        text.textContent = "Done";
+        toast("Uploaded. Converting takes a minute or two, then it appears here.", 6000);
+        state.uploads = [];
+        renderUploadList();
+        $("#upload-caption").value = "";
+        closeSheet("#dlg-upload");
+        setTimeout(load, 120000);
+      } catch (err) {
+        toast(err.message || String(err), 6000);
+        state.uploads = state.uploads.slice(done);
+        renderUploadList();
+      } finally {
+        setBusy(btn, false);
+        progress.hidden = true;
+        bar.style.width = "0";
+      }
+    });
+  }
+
+  // ------------------------------------------------------------------ wiring
+
+  function wireSheets() {
+    for (const btn of $$("[data-close]")) btn.addEventListener("click", () => btn.closest("dialog").close());
+    for (const dlg of $$("dialog.sheet")) {
+      dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+      dlg.addEventListener("close", () => { if (dlg.id === "dlg-crop" && crop.resolve) finishCrop(null); });
+    }
+  }
+
+  function init() {
+    if (CFG.siteTitle) { document.title = CFG.siteTitle; $("#site-title").textContent = CFG.siteTitle; }
+    wireSheets();
+    wireDetail();
+    wireSchedule();
+    wireSettings();
+    wireCrop();
+    wireUpload();
+    $("#btn-refresh").addEventListener("click", () => { toast("Refreshing…", 1200); load(); });
+    $("#btn-upload").addEventListener("click", () => { prefillPins(); renderUploadList(); openSheet("#dlg-upload"); });
+    $("#btn-schedule").addEventListener("click", () => { if (!state.schedule) return; prefillPins(); openSchedule(); });
+    $("#btn-settings").addEventListener("click", () => { if (!state.settings) return; prefillPins(); openSettings(); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && state.manifest) render(); });
+    setInterval(() => { if (state.manifest) renderNow(); }, 60000);
+    prefillPins();
+    load();
+  }
+
+  document.addEventListener("DOMContentLoaded", init);
+})();

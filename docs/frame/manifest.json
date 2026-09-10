@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "generated_at": "2026-09-10T00:04:54Z",
+  "rotation": 90,
+  "panel": {
+    "width": 1200,
+    "height": 1600,
+    "bin_size": 960000
+  },
+  "settings_hash": "3518df7cdf31",
+  "count": 1,
+  "images": [
+    {
+      "id": "testcard",
+      "name": "Test card",
+      "caption": "Six colors, gradients and orientation labels",
+      "fit": "cover",
+      "uploaded_at": "2026-09-09T23:00:00Z",
+      "source": "inbox/testcard.png",
+      "source_sha256": "c0c62ac4395d1bc4e9593bdc3284799a655b44565db8c3012bc84b9f97201cf5",
+      "settings_hash": "3518df7cdf31",
+      "bin": "img/testcard.bin",
+      "bin_sha256": "ca19d480c1ea28bb2b6d58f9095395ed4ecb2fa616a5e53d33407e7652a636fa",
+      "size": 960000,
+      "thumb": "img/testcard_thumb.jpg",
+      "preview": "img/testcard_preview.png",
+      "width": 1600,
+      "height": 1200
+    }
+  ]
+}

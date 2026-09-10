@@ -4,14 +4,14 @@
 Reads
     inbox/<id>.<jpg|png|...>      source image as uploaded
     inbox/<id>.json               optional sidecar: {"name", "caption", "fit", "uploaded_at"}
-    frame/settings.json           rotation, palette, enhance, default_fit
+    docs/frame/settings.json      rotation, palette, enhance, default_fit
 Writes
-    frame/img/<id>.bin            960,000 bytes: panel-native portrait 1200x1600, two pixels
+    docs/frame/img/<id>.bin          960,000 bytes: panel-native portrait 1200x1600, two pixels
                                   per byte, high nibble = left pixel, color codes
                                   black 0, white 1, yellow 2, red 3, blue 5, green 6
-    frame/img/<id>_thumb.jpg      400 px wide, original look
-    frame/img/<id>_preview.png    800 px wide, the dithered result in palette colors
-    frame/manifest.json           what the frame and the website read
+    docs/frame/img/<id>_thumb.jpg     400 px wide, original look
+    docs/frame/img/<id>_preview.png    800 px wide, the dithered result in palette colors
+    docs/frame/manifest.json         what the frame and the website read
 
 Incremental: an image is re-converted only when its source bytes or the settings changed,
 or with --force. Outputs whose source disappeared from the inbox are deleted.
@@ -198,7 +198,7 @@ def convert_one(src: Path, meta: dict, settings: dict, img_dir: Path, pal: Image
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--inbox", default="inbox", type=Path)
-    ap.add_argument("--out", default="frame", type=Path)
+    ap.add_argument("--out", default="docs/frame", type=Path)
     ap.add_argument("--settings", default=None, type=Path, help="default: <out>/settings.json")
     ap.add_argument("--force", action="store_true", help="re-convert everything")
     args = ap.parse_args()
