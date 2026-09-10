@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T00:54:32Z",
+  "generated_at": "2026-09-10T01:04:16Z",
   "rotation": 90,
   "panel": {
     "width": 1200,
@@ -8,7 +8,7 @@
     "bin_size": 960000
   },
   "settings_hash": "3518df7cdf31",
-  "count": 2,
+  "count": 3,
   "images": [
     {
       "id": "testcard",
@@ -41,6 +41,23 @@
       "size": 960000,
       "thumb": "img/a1011aa1f8c3_thumb.jpg",
       "preview": "img/a1011aa1f8c3_preview.png",
+      "width": 1600,
+      "height": 1200
+    },
+    {
+      "id": "847384bed579",
+      "name": "FOQPQHIVIAIJCj4",
+      "caption": "Moebius",
+      "fit": "cover",
+      "uploaded_at": "2026-09-10T01:03:59Z",
+      "source": "inbox/847384bed579.jpg",
+      "source_sha256": "847384bed579cf65fee34294757b6f4a73cca4b4a5ef5515a79298ace8d84015",
+      "settings_hash": "3518df7cdf31",
+      "bin": "img/847384bed579.bin",
+      "bin_sha256": "8a769a1cd34997d7bbd77048198af40d4ac76c89eb7127cdf1cbbda8273c0bc9",
+      "size": 960000,
+      "thumb": "img/847384bed579_thumb.jpg",
+      "preview": "img/847384bed579_preview.png",
       "width": 1600,
       "height": 1200
     }
