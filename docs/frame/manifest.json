@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T01:58:19Z",
+  "generated_at": "2026-09-10T13:18:40Z",
   "rotation": 90,
   "rotation_portrait": 0,
   "panel": {
@@ -9,7 +9,7 @@
     "bin_size": 960000
   },
   "settings_hash": "eab888b7ca42",
-  "count": 5,
+  "count": 6,
   "images": [
     {
       "id": "a1011aa1f8c3",
@@ -98,6 +98,24 @@
       "size": 960000,
       "thumb": "img/06161898c3ad_thumb.jpg",
       "preview": "img/06161898c3ad_preview.png",
+      "width": 1200,
+      "height": 1600
+    },
+    {
+      "id": "8bedd00d99a7",
+      "name": "IMG 3476",
+      "caption": "",
+      "fit": "cover",
+      "orientation": "portrait",
+      "uploaded_at": "2026-09-10T13:18:19Z",
+      "source": "inbox/8bedd00d99a7.jpg",
+      "source_sha256": "8bedd00d99a74e7ba4fd4c27f0c63e026d27a62c20463fb93382a646ba5b46bc",
+      "settings_hash": "eab888b7ca42",
+      "bin": "img/8bedd00d99a7.bin",
+      "bin_sha256": "6a6d4d9c944386cf63b44f085a527b04f9a77358daa06f2601f877c3b9e44f97",
+      "size": 960000,
+      "thumb": "img/8bedd00d99a7_thumb.jpg",
+      "preview": "img/8bedd00d99a7_preview.png",
       "width": 1200,
       "height": 1600
     }
