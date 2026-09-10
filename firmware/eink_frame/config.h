@@ -10,8 +10,9 @@
 #define FRAME_API_BASE "https://api.github.com/repos/csims314/eink-frame/contents/docs/frame/"
 #define FRAME_API_REF "main"
 
-#define FRAME_POLL_MINUTES 2            // how often to check schedule.json + manifest.json
-#define FRAME_MIN_REFRESH_FLOOR_MIN 5   // the schedule may raise min_refresh_minutes, never lower it
+#define FRAME_POLL_MINUTES 1            // how often to check schedule.json + manifest.json (304s are free)
+#define FRAME_MIN_REFRESH_FLOOR_MIN 5   // spacing for scheduled changes; the schedule may raise it, never lower it
+#define FRAME_URGENT_FLOOR_MIN 1        // spacing for a deliberate "show now" or a fresh upload
 #define FRAME_HTTP_TIMEOUT_MS 20000
 #define FRAME_WIFI_TIMEOUT_MS 30000
 #define FRAME_NTP_SERVER_1 "pool.ntp.org"

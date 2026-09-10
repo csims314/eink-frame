@@ -60,6 +60,11 @@ jobs:
         with:
           ref: ${{ needs.convert.outputs.sha }}
       - uses: actions/configure-pages@v5
+      - name: Cache-bust site assets
+        run: |
+          v="${GITHUB_SHA::8}"
+          sed -i -E "s/(app\.js|schedule\.js|config\.js|styles\.css)\"/\1?v=$v\"/g" docs/index.html
+          grep -o 'src="[^"]*"\|href="[^"]*"' docs/index.html | grep "?v=" || true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs

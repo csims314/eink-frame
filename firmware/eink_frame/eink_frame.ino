@@ -344,7 +344,7 @@ static bool poll() {
   // A deliberate "show now" only waits for the panel's safety floor; scheduled changes respect
   // the schedule's own minimum spacing.
   bool urgent = strcmp(reason, "show-now") == 0;
-  int minRefresh = urgent ? FRAME_MIN_REFRESH_FLOOR_MIN : max(schedule.min_refresh_minutes, FRAME_MIN_REFRESH_FLOOR_MIN);
+  int minRefresh = urgent ? FRAME_URGENT_FLOOR_MIN : max(schedule.min_refresh_minutes, FRAME_MIN_REFRESH_FLOOR_MIN);
   if (lastRefresh > 0 && (uint32_t)now > lastRefresh && (uint32_t)now - lastRefresh < (uint32_t)minRefresh * 60u) {
     logf("poll: last refresh %lu s ago, waiting for the %d min minimum",
          (unsigned long)((uint32_t)now - lastRefresh), minRefresh);
