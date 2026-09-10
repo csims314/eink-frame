@@ -35,7 +35,7 @@
   "enhance": {
     "autocontrast": true,
     "autocontrast_cutoff": 1,
-    "saturation": 1.25
+    "saturation": 1.5
   },
   "default_fit": "cover"
 }
