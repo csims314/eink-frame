@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T13:39:15Z",
+  "generated_at": "2026-09-10T14:35:09Z",
   "rotation": 90,
   "rotation_portrait": 0,
   "panel": {
@@ -9,7 +9,7 @@
     "bin_size": 960000
   },
   "settings_hash": "eab888b7ca42",
-  "count": 7,
+  "count": 8,
   "images": [
     {
       "id": "a1011aa1f8c3",
@@ -136,6 +136,24 @@
       "preview": "img/4dc2170dbc81_preview.png",
       "width": 1200,
       "height": 1600
+    },
+    {
+      "id": "3154a70afbd5",
+      "name": "IMG 1213",
+      "caption": "",
+      "fit": "cover",
+      "orientation": "landscape",
+      "uploaded_at": "2026-09-10T14:34:51Z",
+      "source": "inbox/3154a70afbd5.jpg",
+      "source_sha256": "3154a70afbd53eb4529e64e5e1c7058df6ac8715bc751f7e6ab7ae8f35c6fff2",
+      "settings_hash": "eab888b7ca42",
+      "bin": "img/3154a70afbd5.bin",
+      "bin_sha256": "42537526f56d5a0806c841fb1c16a0f474e6928fa04ac073071ebe718d636400",
+      "size": 960000,
+      "thumb": "img/3154a70afbd5_thumb.jpg",
+      "preview": "img/3154a70afbd5_preview.png",
+      "width": 1600,
+      "height": 1200
     }
   ]
 }
