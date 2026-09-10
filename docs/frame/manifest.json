@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T01:11:41Z",
+  "generated_at": "2026-09-10T01:16:39Z",
   "rotation": 90,
   "panel": {
     "width": 1200,
@@ -8,7 +8,7 @@
     "bin_size": 960000
   },
   "settings_hash": "ef40bb39fc41",
-  "count": 2,
+  "count": 3,
   "images": [
     {
       "id": "a1011aa1f8c3",
@@ -41,6 +41,23 @@
       "size": 960000,
       "thumb": "img/847384bed579_thumb.jpg",
       "preview": "img/847384bed579_preview.png",
+      "width": 1600,
+      "height": 1200
+    },
+    {
+      "id": "599aea27286b",
+      "name": "death-burger2",
+      "caption": "",
+      "fit": "cover",
+      "uploaded_at": "2026-09-10T01:16:26Z",
+      "source": "inbox/599aea27286b.jpg",
+      "source_sha256": "599aea27286bcde9d4d4022e73f30768cc2bc13b997acff29a6a2f1ac1c393fb",
+      "settings_hash": "ef40bb39fc41",
+      "bin": "img/599aea27286b.bin",
+      "bin_sha256": "fb4cf3496db70a6517674360e56f75b6c20d4a3c5750f9bca3686acf96482284",
+      "size": 960000,
+      "thumb": "img/599aea27286b_thumb.jpg",
+      "preview": "img/599aea27286b_preview.png",
       "width": 1600,
       "height": 1200
     }
