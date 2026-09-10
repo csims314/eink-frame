@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T00:06:36Z",
+  "generated_at": "2026-09-10T00:54:32Z",
   "rotation": 90,
   "panel": {
     "width": 1200,
@@ -8,7 +8,7 @@
     "bin_size": 960000
   },
   "settings_hash": "3518df7cdf31",
-  "count": 1,
+  "count": 2,
   "images": [
     {
       "id": "testcard",
@@ -24,6 +24,23 @@
       "size": 960000,
       "thumb": "img/testcard_thumb.jpg",
       "preview": "img/testcard_preview.png",
+      "width": 1600,
+      "height": 1200
+    },
+    {
+      "id": "a1011aa1f8c3",
+      "name": "FKaAen9VkAQ89eY",
+      "caption": "FuelDepo",
+      "fit": "cover",
+      "uploaded_at": "2026-09-10T00:54:15Z",
+      "source": "inbox/a1011aa1f8c3.jpg",
+      "source_sha256": "a1011aa1f8c37193b62071e9f4c4c9b5091a2c6b5718028b337ab72bf070fd61",
+      "settings_hash": "3518df7cdf31",
+      "bin": "img/a1011aa1f8c3.bin",
+      "bin_sha256": "c5458907de885a875cfe36f06917edd309e96afe71be4ba037259e9c5effeaac",
+      "size": 960000,
+      "thumb": "img/a1011aa1f8c3_thumb.jpg",
+      "preview": "img/a1011aa1f8c3_preview.png",
       "width": 1600,
       "height": 1200
     }
