@@ -18,7 +18,10 @@ ESP32 ── every 5 min: GET docs/frame/{schedule,manifest}.json ── downloa
          refreshes the panel, puts it to sleep
 ```
 
-- `docs/` — the website (plain HTML/JS, mobile-first). `docs/frame/` holds what the frame reads.
+- `docs/` — the website (plain HTML/JS, mobile-first, installable on a phone's home screen).
+  Uploads go through a crop screen (drag, pinch-zoom, landscape or portrait shape) that exports
+  the exact frame resolution; portrait pictures get white bands on a landscape frame.
+  `docs/frame/` holds what the frame reads; the site reads the same files straight from the repo.
 - `inbox/` — pictures as uploaded, plus a `.json` sidecar with name/caption.
 - `tools/convert.py` — the converter (Pillow, Floyd–Steinberg to the six-color palette).
   `tools/decode_bin.py` turns a `.bin` back into a PNG; `tools/make_testcard.py` makes a test card.
