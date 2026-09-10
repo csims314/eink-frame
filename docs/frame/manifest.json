@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T13:18:40Z",
+  "generated_at": "2026-09-10T13:39:15Z",
   "rotation": 90,
   "rotation_portrait": 0,
   "panel": {
@@ -9,7 +9,7 @@
     "bin_size": 960000
   },
   "settings_hash": "eab888b7ca42",
-  "count": 6,
+  "count": 7,
   "images": [
     {
       "id": "a1011aa1f8c3",
@@ -116,6 +116,24 @@
       "size": 960000,
       "thumb": "img/8bedd00d99a7_thumb.jpg",
       "preview": "img/8bedd00d99a7_preview.png",
+      "width": 1200,
+      "height": 1600
+    },
+    {
+      "id": "4dc2170dbc81",
+      "name": "IMG 7891",
+      "caption": "",
+      "fit": "cover",
+      "orientation": "portrait",
+      "uploaded_at": "2026-09-10T13:38:59Z",
+      "source": "inbox/4dc2170dbc81.jpg",
+      "source_sha256": "4dc2170dbc81573d591978be2dd44c0f4dbbc69dee361f51feb1a7ebf715bc14",
+      "settings_hash": "eab888b7ca42",
+      "bin": "img/4dc2170dbc81.bin",
+      "bin_sha256": "279fecce55ec2e96584511a0ba32bb6e9a767f9ef3f81102c5fd58b898858f7d",
+      "size": 960000,
+      "thumb": "img/4dc2170dbc81_thumb.jpg",
+      "preview": "img/4dc2170dbc81_preview.png",
       "width": 1200,
       "height": 1600
     }
