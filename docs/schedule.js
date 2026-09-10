@@ -1,9 +1,9 @@
 // schedule.js — the "which image is due right now" rule, identical to
 // firmware/eink_frame/schedule_logic.cpp. Keep the two in sync.
 //
-// Precedence: an active pin wins; else a "show now" request wins until the next rotation
-// boundary after it was made; else the rotation slot picks from the ordered (or seeded-shuffled)
-// image list. mode "single" always shows single_image_id.
+// Precedence: a "show now" request (made by hand or by an upload) wins for one full rotation
+// interval after it was made; else an active pin wins; else the rotation slot picks from the
+// ordered (or seeded-shuffled) image list. mode "single" always shows single_image_id.
 (function (global) {
   "use strict";
 
@@ -95,6 +95,16 @@
     const local = localParts(now, tzName);
     const has = (id) => !!id && ids.includes(id);
 
+    // A "show now" (set by hand, or automatically by an upload) beats everything for one full
+    // rotation interval, then the schedule takes over again.
+    const sn = s.show_now;
+    if (sn && has(sn.image_id)) {
+      const at = Number(sn.at_unix) || 0;
+      const len = slotSeconds(s);
+      const expires = len > 0 ? at + len : Infinity;
+      if (at <= now && now < expires) return { id: sn.image_id, reason: "show-now" };
+    }
+
     for (const pin of s.pins || []) {
       if (!has(pin.image_id)) continue;
       if (pin.date) {
@@ -105,12 +115,6 @@
       if (days.includes(local.wday) && minuteInWindow(local.minute, parseHHMM(pin.start), parseHHMM(pin.end))) {
         return { id: pin.image_id, reason: "pin-slot" };
       }
-    }
-
-    const sn = s.show_now;
-    if (sn && has(sn.image_id)) {
-      const at = Number(sn.at_unix) || 0;
-      if (at <= now && now < nextSlotBoundary(s, at)) return { id: sn.image_id, reason: "show-now" };
     }
 
     if (s.mode === "single") {

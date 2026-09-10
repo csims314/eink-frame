@@ -242,7 +242,7 @@
 
   async function showNow(id, btn) {
     const schedule = Object.assign({}, state.schedule, { show_now: { image_id: id, at_unix: nowUnix() } });
-    const ok = await saveSchedule(schedule, $("#img-pin-code").value, btn, "Requested. The frame switches within about 5 minutes.");
+    const ok = await saveSchedule(schedule, $("#img-pin-code").value, btn, "Requested. The frame switches within about 3 minutes.");
     if (ok) closeSheet("#dlg-image");
   }
 
@@ -754,7 +754,7 @@
       const text = progress.querySelector(".progress-text");
       setBusy(btn, true, "Uploading…");
       progress.hidden = false;
-      const caption = $("#upload-caption").value.trim();
+      const typedName = $("#upload-caption").value.trim();
       const pin = $("#upload-pin").value;
       let done = 0;
       const newIds = new Set();
@@ -763,13 +763,29 @@
           text.textContent = "Uploading " + (done + 1) + " of " + state.uploads.length;
           bar.style.width = Math.round((done / state.uploads.length) * 100) + "%";
           const base64 = item.dataUrl.split(",")[1];
-          const res = await relay("upload", { name: item.name.replace(/\.[^.]+$/, ""), caption, fit: "cover", mime: "image/jpeg", data: base64 }, pin);
+          // The typed name is the label; with several pictures they get numbered. Otherwise a
+          // readable date stands in for the phone's random file name.
+          let name = typedName;
+          if (name && state.uploads.length > 1) name += " " + (done + 1);
+          if (!name) name = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + (state.uploads.length > 1 ? " (" + (done + 1) + ")" : "");
+          const res = await relay("upload", { name, caption: "", fit: "cover", mime: "image/jpeg", data: base64 }, pin);
           if (res.id) newIds.add(res.id);
           done++;
         }
         bar.style.width = "100%";
         text.textContent = "Done";
-        toast("Uploaded. Converting takes a minute or two; the gallery updates by itself.", 6000);
+        // A fresh upload always goes to the frame: request the last one as "show now".
+        const lastId = Array.from(newIds).pop();
+        if (lastId) {
+          try {
+            const schedule = Object.assign({}, state.schedule, { show_now: { image_id: lastId, at_unix: nowUnix() } });
+            await relay("schedule", { schedule }, pin);
+            state.schedule = schedule;
+          } catch (err) {
+            toast("Uploaded, but couldn't request it on the frame: " + (err.message || err), 6000);
+          }
+        }
+        toast("Uploaded. It shows on the frame as soon as it's converted, about 3 minutes.", 6000);
         state.uploads = [];
         renderUploadList();
         $("#upload-caption").value = "";

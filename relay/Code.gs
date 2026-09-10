@@ -75,7 +75,7 @@ function upload_(body) {
 
 function deleteImage_(id) {
   id = String(id || "");
-  if (!/^[0-9a-f]{6,64}$/.test(id)) throw new Error("Bad picture id.");
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw new Error("Bad picture id.");
   var exts = ["jpg", "jpeg", "png", "webp"];
   var removed = 0;
   for (var i = 0; i < exts.length; i++) {

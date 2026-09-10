@@ -123,6 +123,50 @@ static bool httpGetString(const String& url, String& out) {
   return true;
 }
 
+struct CachedFile {
+  String body;
+  String etag;
+};
+
+// Fetches a small JSON file through the GitHub API with an ETag conditional request, so the
+// content is fresh the moment it's committed and an unchanged file costs nothing against the
+// rate limit. Falls back to the raw file server if the API is unavailable.
+static bool fetchFresh(const char* name, CachedFile& cache) {
+  {
+    NetworkClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.setTimeout(FRAME_HTTP_TIMEOUT_MS);
+    http.setReuse(false);
+    String url = String(FRAME_API_BASE) + name + "?ref=" FRAME_API_REF;
+    if (http.begin(client, url)) {
+      http.addHeader("Accept", "application/vnd.github.raw+json");
+      http.addHeader("X-GitHub-Api-Version", "2022-11-28");
+      if (cache.etag.length()) http.addHeader("If-None-Match", cache.etag);
+      const char* keys[] = {"ETag"};
+      http.collectHeaders(keys, 1);
+      int code = http.GET();
+      if (code == HTTP_CODE_NOT_MODIFIED && cache.body.length()) {
+        http.end();
+        return true;
+      }
+      if (code == HTTP_CODE_OK) {
+        cache.body = http.getString();
+        cache.etag = http.header("ETag");
+        http.end();
+        return true;
+      }
+      logf("api: %d for %s, falling back to raw", code, name);
+      http.end();
+    }
+  }
+  String body;
+  if (!httpGetString(String(FRAME_RAW_BASE) + name, body)) return false;
+  cache.body = body;
+  cache.etag = "";
+  return true;
+}
+
 static bool httpGetBuffer(const String& url, uint8_t* buf, size_t expect) {
   NetworkClientSecure client;
   client.setInsecure();
@@ -266,14 +310,13 @@ static bool poll() {
   if (!connectWiFi()) return false;
   if (!syncTime()) return false;
 
-  String cacheBust = "?t=" + String((unsigned long)time(nullptr));
-  String body;
-  if (!httpGetString(String(FRAME_RAW_BASE) + "schedule.json" + cacheBust, body)) return false;
-  if (!parseSchedule(body, schedule)) return false;
+  static CachedFile scheduleFile, manifestFile;
+  if (!fetchFresh("schedule.json", scheduleFile)) return false;
+  if (!parseSchedule(scheduleFile.body, schedule)) return false;
   applyTimezone(schedule.tz_posix);
 
-  if (!httpGetString(String(FRAME_RAW_BASE) + "manifest.json" + cacheBust, body)) return false;
-  if (!parseManifest(body, images)) return false;
+  if (!fetchFresh("manifest.json", manifestFile)) return false;
+  if (!parseManifest(manifestFile.body, images)) return false;
 
   std::vector<std::string> ids;
   ids.reserve(images.size());
@@ -296,7 +339,10 @@ static bool poll() {
     logf("poll: quiet hours, not refreshing");
     return true;
   }
-  int minRefresh = max(schedule.min_refresh_minutes, FRAME_MIN_REFRESH_FLOOR_MIN);
+  // A deliberate "show now" only waits for the panel's safety floor; scheduled changes respect
+  // the schedule's own minimum spacing.
+  bool urgent = strcmp(reason, "show-now") == 0;
+  int minRefresh = urgent ? FRAME_MIN_REFRESH_FLOOR_MIN : max(schedule.min_refresh_minutes, FRAME_MIN_REFRESH_FLOOR_MIN);
   if (lastRefresh > 0 && (uint32_t)now > lastRefresh && (uint32_t)now - lastRefresh < (uint32_t)minRefresh * 60u) {
     logf("poll: last refresh %lu s ago, waiting for the %d min minimum",
          (unsigned long)((uint32_t)now - lastRefresh), minRefresh);

@@ -78,20 +78,25 @@ std::string dueImage(const Schedule& s, const std::vector<std::string>& ids, int
   snprintf(today, sizeof(today), "%04d-%02d-%02d", local.tm_year + 1900, local.tm_mon + 1, local.tm_mday);
   int minute = local.tm_hour * 60 + local.tm_min;
 
-  for (const PinRule& pin : s.pins) {
-    if (!contains(ids, pin.image_id)) continue;
-    if (!pin.date.empty()) {
-      if (pin.date == today) { result = pin.image_id; why = "pin-date"; break; }
-      continue;
-    }
-    if ((pin.days_mask & (1u << local.tm_wday)) && minuteInWindow(minute, pin.start_min, pin.end_min)) {
-      result = pin.image_id; why = "pin-slot"; break;
-    }
+  // A "show now" (set by hand, or automatically by an upload) beats everything for one full
+  // rotation interval, then the schedule takes over again.
+  if (contains(ids, s.show_now_id)) {
+    int64_t len = slotSeconds(s);
+    int64_t expires = len > 0 ? s.show_now_at + len : INT64_MAX;
+    if (s.show_now_at <= now && now < expires) { result = s.show_now_id; why = "show-now"; }
   }
 
-  if (result.empty() && contains(ids, s.show_now_id)) {
-    int64_t expires = nextSlotBoundary(s, s.show_now_at);
-    if (s.show_now_at <= now && now < expires) { result = s.show_now_id; why = "show-now"; }
+  if (result.empty()) {
+    for (const PinRule& pin : s.pins) {
+      if (!contains(ids, pin.image_id)) continue;
+      if (!pin.date.empty()) {
+        if (pin.date == today) { result = pin.image_id; why = "pin-date"; break; }
+        continue;
+      }
+      if ((pin.days_mask & (1u << local.tm_wday)) && minuteInWindow(minute, pin.start_min, pin.end_min)) {
+        result = pin.image_id; why = "pin-slot"; break;
+      }
+    }
   }
 
   if (result.empty() && s.mode == "single") {

@@ -2,9 +2,9 @@
 // The "which image is due right now" rule. Kept free of Arduino dependencies so it can be read
 // side by side with docs/schedule.js, which implements the same rule for the website.
 //
-// Precedence: an active pin wins; else a "show now" request wins until the next rotation
-// boundary after it was made; else the rotation slot picks from the ordered (or seeded-shuffled)
-// image list. mode "single" always shows single_image_id.
+// Precedence: a "show now" request (made by hand or by an upload) wins for one full rotation
+// interval after it was made; else an active pin wins; else the rotation slot picks from the
+// ordered (or seeded-shuffled) image list. mode "single" always shows single_image_id.
 
 #include <stdint.h>
 #include <time.h>

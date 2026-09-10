@@ -5,7 +5,12 @@
 // Where the converted images and schedule live (trailing slash required).
 #define FRAME_RAW_BASE "https://raw.githubusercontent.com/csims314/eink-frame/main/docs/frame/"
 
-#define FRAME_POLL_MINUTES 5            // how often to check schedule.json + manifest.json
+// schedule.json and manifest.json are read through the GitHub API with conditional requests:
+// always fresh (no CDN lag) and unchanged files don't count against the API rate limit.
+#define FRAME_API_BASE "https://api.github.com/repos/csims314/eink-frame/contents/docs/frame/"
+#define FRAME_API_REF "main"
+
+#define FRAME_POLL_MINUTES 2            // how often to check schedule.json + manifest.json
 #define FRAME_MIN_REFRESH_FLOOR_MIN 5   // the schedule may raise min_refresh_minutes, never lower it
 #define FRAME_HTTP_TIMEOUT_MS 20000
 #define FRAME_WIFI_TIMEOUT_MS 30000
