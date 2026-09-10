@@ -220,8 +220,8 @@
     const st = state.frameStatus;
     const live = st && st.showing === target.id;
     const pinned = new Set((state.schedule.pins || []).map((p) => p.image_id));
-    const portrait = !isLandscape();
     for (const img of state.images) {
+      const portrait = img.orientation ? img.orientation === "portrait" : (img.height > img.width);
       const card = document.createElement("button");
       card.type = "button";
       card.className = "card" + (portrait ? " portrait" : "");
@@ -431,6 +431,7 @@
   function openSettings() {
     const st = state.settings || {};
     $("#set-rotation").value = String(st.rotation ?? 90);
+    $("#set-rotation-portrait").value = String(st.rotation_portrait ?? 0);
     const sat = String((st.enhance && st.enhance.saturation) ?? 1.25);
     const sel = $("#set-saturation");
     if (![...sel.options].some((o) => o.value === sat)) sel.add(new Option(sat, sat));
@@ -446,6 +447,7 @@
       e.preventDefault();
       const st = Object.assign({}, state.settings);
       st.rotation = Number($("#set-rotation").value);
+      st.rotation_portrait = Number($("#set-rotation-portrait").value);
       st.enhance = Object.assign({}, st.enhance, {
         saturation: Number($("#set-saturation").value),
         autocontrast: $("#set-autocontrast").checked,
@@ -534,11 +536,9 @@
 
   function setShapeUI() {
     for (const btn of $$("#crop-shape button")) btn.setAttribute("aria-pressed", String(btn.dataset.shape === crop.shape));
-    const frameLandscape = isLandscape();
-    const shapeLandscape = crop.shape !== "portrait";
-    $("#crop-shape-hint").textContent = frameLandscape === shapeLandscape
-      ? "Fills the whole frame."
-      : (shapeLandscape ? "Shown with white bands above and below." : "Shown with white bands on both sides.");
+    $("#crop-shape-hint").textContent = crop.shape === "portrait"
+      ? "Fills the whole frame turned on its side."
+      : "Fills the whole frame.";
   }
 
   function cropLayout() {
@@ -656,25 +656,15 @@
     window.addEventListener("resize", () => { if ($("#dlg-crop").open) { const s = crop.scale / cropCoverScale(); cropLayout(); crop.scale = cropCoverScale() * s; cropClamp(); cropRender(); } });
   }
 
-  // Renders the crop at the frame's full resolution. A picture whose shape doesn't match the
-  // frame's orientation is centered on white: 900x1200 inside 1600x1200, or 1200x900 inside 1200x1600.
+  // Renders the crop at the panel's full resolution: 1600x1200 for a landscape picture,
+  // 1200x1600 for a portrait one (the converter turns it to fill the panel on its side).
   function cropExport() {
-    const target = targetSize();
-    const frameLandscape = target.w > target.h;
-    const shapeLandscape = crop.shape !== "portrait";
-    let cw = target.w, ch = target.h;
-    if (frameLandscape !== shapeLandscape) {
-      if (frameLandscape) { ch = target.h; cw = Math.round(ch * 3 / 4); }
-      else { cw = target.w; ch = Math.round(cw * 3 / 4); }
-    }
+    const portrait = crop.shape === "portrait";
     const out = document.createElement("canvas");
-    out.width = target.w;
-    out.height = target.h;
+    out.width = portrait ? 1200 : 1600;
+    out.height = portrait ? 1600 : 1200;
     const ctx = out.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, target.w, target.h);
-    ctx.translate(Math.round((target.w - cw) / 2), Math.round((target.h - ch) / 2));
-    cropDrawInto(ctx, cw / crop.vw);
+    cropDrawInto(ctx, out.width / crop.vw);
     return new Promise((resolve) => out.toBlob((blob) => resolve(blob), "image/jpeg", CFG.jpegQuality || 0.9));
   }
 
@@ -724,11 +714,14 @@
     openSheet("#dlg-crop");
     await new Promise((r) => requestAnimationFrame(r));
     cropReset("cover");
+    const shapeAtExport = () => crop.shape;
     const blob = await new Promise((resolve) => { crop.resolve = resolve; });
+    const orientation = shapeAtExport();
     closeSheet("#dlg-crop");
     bitmap.close && bitmap.close();
     crop.bitmap = null;
-    return blob ? await blob : null;
+    const result = blob ? await blob : null;
+    return result ? { blob: result, orientation } : null;
   }
 
   // ------------------------------------------------------------------ upload sheet
@@ -788,8 +781,8 @@
       e.target.value = "";
       for (let i = 0; i < files.length; i++) {
         try {
-          const blob = await cropFile(files[i], i, files.length);
-          if (blob) state.uploads.push({ name: files[i].name, blob, dataUrl: await blobToDataUrl(blob) });
+          const cropped = await cropFile(files[i], i, files.length);
+          if (cropped) state.uploads.push({ name: files[i].name, blob: cropped.blob, orientation: cropped.orientation, dataUrl: await blobToDataUrl(cropped.blob) });
         } catch (err) {
           toast(err.message || String(err), 4000);
         }
@@ -819,7 +812,7 @@
           let name = typedName;
           if (name && state.uploads.length > 1) name += " " + (done + 1);
           if (!name) name = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + (state.uploads.length > 1 ? " (" + (done + 1) + ")" : "");
-          const res = await relay("upload", { name, caption: "", fit: "cover", mime: "image/jpeg", data: base64 }, pin);
+          const res = await relay("upload", { name, caption: "", fit: "cover", orientation: item.orientation || "landscape", mime: "image/jpeg", data: base64 }, pin);
           if (res.id) newIds.add(res.id);
           done++;
         }

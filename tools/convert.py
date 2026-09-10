@@ -34,9 +34,11 @@ COLOR_CODE = {"black": 0x0, "white": 0x1, "yellow": 0x2, "red": 0x3, "blue": 0x5
 SOURCE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff"}
 
 DEFAULT_SETTINGS = {
-    # Degrees counter-clockwise applied to the picture as the viewer sees it, to land it in the
-    # driver's portrait buffer. 90 or 270 = frame hangs landscape; 0 or 180 = portrait.
+    # Degrees counter-clockwise applied to a picture as the viewer sees it, to land it in the
+    # driver's portrait buffer. Landscape pictures use `rotation` (90 or 270); portrait pictures
+    # fill the panel turned on its side and use `rotation_portrait` (0 or 180).
     "rotation": 90,
+    "rotation_portrait": 0,
     "palette": {
         "black": [0, 0, 0],
         "white": [255, 255, 255],
@@ -71,19 +73,29 @@ def load_settings(path: Path) -> dict:
                 settings[key].update(value)
             else:
                 settings[key] = value
-    if settings["rotation"] not in (0, 90, 180, 270):
-        raise SystemExit(f"settings.rotation must be 0, 90, 180 or 270, got {settings['rotation']}")
+    if settings["rotation"] not in (90, 270):
+        raise SystemExit(f"settings.rotation must be 90 or 270, got {settings['rotation']}")
+    if settings["rotation_portrait"] not in (0, 180):
+        raise SystemExit(f"settings.rotation_portrait must be 0 or 180, got {settings['rotation_portrait']}")
     return settings
 
 
 def settings_hash(settings: dict) -> str:
-    relevant = {k: settings[k] for k in ("rotation", "palette", "enhance", "default_fit")}
+    relevant = {k: settings[k] for k in ("rotation", "rotation_portrait", "palette", "enhance", "default_fit")}
     return hashlib.sha256(json.dumps(relevant, sort_keys=True).encode()).hexdigest()[:12]
 
 
-def target_size(rotation: int) -> tuple[int, int]:
-    """Size of the picture as viewed: landscape when the buffer gets a 90/270 turn."""
-    return (PANEL_H, PANEL_W) if rotation in (90, 270) else (PANEL_W, PANEL_H)
+def orientation_of(meta: dict, img: Image.Image) -> str:
+    """The sidecar decides; otherwise a taller-than-wide source is treated as portrait."""
+    o = meta.get("orientation")
+    if o in ("landscape", "portrait"):
+        return o
+    return "portrait" if img.height > img.width else "landscape"
+
+
+def target_size(orientation: str) -> tuple[int, int]:
+    """Size of the picture as viewed: the full panel either way."""
+    return (PANEL_W, PANEL_H) if orientation == "portrait" else (PANEL_H, PANEL_W)
 
 
 def palette_image(palette: dict) -> Image.Image:
@@ -151,11 +163,11 @@ def convert_one(src: Path, meta: dict, settings: dict, img_dir: Path, pal: Image
     fit = meta.get("fit") or settings["default_fit"]
     if fit not in ("cover", "contain"):
         fit = settings["default_fit"]
-    rotation = int(settings["rotation"])
-    size = target_size(rotation)
-
     with Image.open(src) as opened:
         img = ImageOps.exif_transpose(opened).convert("RGB")
+    orientation = orientation_of(meta, img)
+    rotation = int(settings["rotation"]) if orientation == "landscape" else int(settings["rotation_portrait"])
+    size = target_size(orientation)
     fitted = fit_image(img, size, fit)
 
     thumb = fitted.copy()
@@ -181,6 +193,7 @@ def convert_one(src: Path, meta: dict, settings: dict, img_dir: Path, pal: Image
         "name": meta.get("name") or src.name,
         "caption": meta.get("caption", ""),
         "fit": fit,
+        "orientation": orientation,
         "uploaded_at": meta.get("uploaded_at") or iso_utc(src.stat().st_mtime),
         "source": f"inbox/{src.name}",
         "source_sha256": sha256_file(src),
@@ -255,6 +268,7 @@ def main() -> int:
         "version": 1,
         "generated_at": iso_utc(datetime.now(tz=timezone.utc).timestamp()),
         "rotation": int(settings["rotation"]),
+        "rotation_portrait": int(settings["rotation_portrait"]),
         "panel": {"width": PANEL_W, "height": PANEL_H, "bin_size": BIN_SIZE},
         "settings_hash": shash,
         "count": len(entries),

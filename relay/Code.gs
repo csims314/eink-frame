@@ -83,6 +83,7 @@ function upload_(body) {
     name: name,
     caption: String(body.caption || "").replace(/[\r\n]/g, " ").slice(0, 200),
     fit: body.fit === "contain" ? "contain" : "cover",
+    orientation: body.orientation === "portrait" ? "portrait" : "landscape",
     uploaded_at: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
   };
 

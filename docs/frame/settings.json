@@ -37,5 +37,6 @@
     "autocontrast_cutoff": 1,
     "saturation": 1.5
   },
-  "default_fit": "cover"
+  "default_fit": "cover",
+  "rotation_portrait": 0
 }

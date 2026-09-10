@@ -201,12 +201,17 @@
       <div class="sheet-handle"></div>
       <h2>Frame</h2>
       <label class="field">
-        <span>Orientation</span>
+        <span>Landscape pictures</span>
         <select id="set-rotation">
-          <option value="90">Landscape</option>
-          <option value="270">Landscape, flipped</option>
-          <option value="0">Portrait</option>
-          <option value="180">Portrait, flipped</option>
+          <option value="90">Normal</option>
+          <option value="270">Upside down? Flip them</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Portrait pictures <small>(fill the frame turned on its side)</small></span>
+        <select id="set-rotation-portrait">
+          <option value="0">Top on the left</option>
+          <option value="180">Top on the right</option>
         </select>
       </label>
       <label class="field">
