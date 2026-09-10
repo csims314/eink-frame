@@ -293,7 +293,6 @@
     const img = state.byId.get(id);
     if (!img) return;
     state.detailId = id;
-    state.detailPreview = false;
     updateDetailMedia();
     $("#img-name").textContent = img.name;
     const when = img.uploaded_at ? new Date(img.uploaded_at).toLocaleDateString() : "";
@@ -309,10 +308,7 @@
   function updateDetailMedia() {
     const img = state.byId.get(state.detailId);
     if (!img) return;
-    const view = $("#img-view");
-    view.src = CFG.frameBase + (state.detailPreview ? img.preview : img.thumb) + "?v=" + (img.bin_sha256 || "").slice(0, 8);
-    $("#img-toggle").setAttribute("aria-pressed", String(state.detailPreview));
-    $("#img-toggle").textContent = state.detailPreview ? "Showing the frame's version" : "Show as the frame sees it";
+    $("#img-view").src = CFG.frameBase + img.thumb + "?v=" + (img.bin_sha256 || "").slice(0, 8);
   }
 
   async function saveSchedule(schedule, pin, btn, doneMsg) {
@@ -362,7 +358,6 @@
   }
 
   function wireDetail() {
-    $("#img-toggle").addEventListener("click", () => { state.detailPreview = !state.detailPreview; updateDetailMedia(); });
     $("#img-show-now").addEventListener("click", (e) => showNow(state.detailId, e.currentTarget));
     $("#img-delete").addEventListener("click", (e) => deleteImage(state.detailId, e.currentTarget));
     $("#img-pin").addEventListener("click", () => { $("#form-pin").hidden = false; $("#form-pin").scrollIntoView({ behavior: "smooth", block: "end" }); });
