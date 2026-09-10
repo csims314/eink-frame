@@ -35,6 +35,13 @@ struct ManifestImage {
   size_t size;
 };
 
+// Declared up here because the Arduino preprocessor emits function prototypes before any type
+// defined lower in the sketch.
+struct CachedFile {
+  String body;
+  String etag;
+};
+
 static Preferences prefs;
 static std::vector<ManifestImage> images;
 static Schedule schedule;
@@ -122,11 +129,6 @@ static bool httpGetString(const String& url, String& out) {
   http.end();
   return true;
 }
-
-struct CachedFile {
-  String body;
-  String etag;
-};
 
 // Fetches a small JSON file through the GitHub API with an ETag conditional request, so the
 // content is fresh the moment it's committed and an unchanged file costs nothing against the
