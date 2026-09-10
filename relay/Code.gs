@@ -20,6 +20,11 @@ function doGet(e) {
     var raw = PROPS.getProperty("STATUS");
     return json_({ ok: true, status: raw ? JSON.parse(raw) : null });
   }
+  if (action === "schedule") {
+    // The last schedule written through this relay: always current, unlike the raw file server.
+    var cached = PROPS.getProperty("SCHEDULE_CACHE");
+    return json_({ ok: true, schedule: cached ? JSON.parse(cached) : null });
+  }
   return json_({ ok: true, service: "eink-frame relay", repo: PROPS.getProperty("REPO") || null });
 }
 
@@ -47,8 +52,11 @@ function doPost(e) {
     switch (body.action) {
       case "upload":
         return json_(upload_(body));
-      case "schedule":
-        return json_(putJson_("docs/frame/schedule.json", body.schedule, "Update schedule [skip ci]"));
+      case "schedule": {
+        var saved = putJson_("docs/frame/schedule.json", body.schedule, "Update schedule [skip ci]");
+        PROPS.setProperty("SCHEDULE_CACHE", JSON.stringify(body.schedule));
+        return json_(saved);
+      }
       case "settings":
         return json_(putJson_("docs/frame/settings.json", body.settings, "Update frame settings"));
       case "delete":

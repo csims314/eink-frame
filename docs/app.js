@@ -82,10 +82,41 @@
   }
 
   async function fetchJson(name) {
-    const base = (name === "schedule.json" && CFG.scheduleBase) ? CFG.scheduleBase : CFG.frameBase;
-    const res = await fetchWithTimeout(base + name + "?t=" + Date.now(), { cache: "no-store" });
+    if (name === "schedule.json") return fetchSchedule();
+    const res = await fetchWithTimeout(CFG.frameBase + name + "?t=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error(name + ": HTTP " + res.status);
     return res.json();
+  }
+
+  // The schedule: freshest copy first (the relay remembers the last one it wrote), then the
+  // repo's raw file, which can lag a few minutes. A change made from this page in the last few
+  // minutes always wins over an older copy from either source.
+  async function fetchSchedule() {
+    let fetched = null;
+    if (CFG.relayUrl) {
+      try {
+        const res = await fetchWithTimeout(CFG.relayUrl + "?action=schedule&t=" + Date.now(), { cache: "no-store", redirect: "follow" }, 10000);
+        const data = await res.json();
+        if (data && data.ok && data.schedule && typeof data.schedule === "object") fetched = data.schedule;
+      } catch (e) { /* fall through to raw */ }
+    }
+    if (!fetched) {
+      const base = CFG.scheduleBase || CFG.frameBase;
+      const res = await fetchWithTimeout(base + "schedule.json?t=" + Date.now(), { cache: "no-store" });
+      if (!res.ok) throw new Error("schedule.json: HTTP " + res.status);
+      fetched = await res.json();
+    }
+    const local = state.localSchedule;
+    if (local && Date.now() - state.localScheduleAt < 10 * 60000) {
+      const at = (s) => Number(s && s.show_now && s.show_now.at_unix) || 0;
+      if (at(fetched) < at(local)) return local;
+    }
+    return fetched;
+  }
+
+  function rememberLocalSchedule(schedule) {
+    state.localSchedule = schedule;
+    state.localScheduleAt = Date.now();
   }
 
   async function relay(action, payload, pin) {
@@ -175,15 +206,33 @@
     } catch (e) { /* status is a nicety; ignore */ }
   }
 
+  // What the hero should say. The frame's own report is the truth for "now showing"; the
+  // schedule only decides whether something newer is on its way.
+  function heroState() {
+    const target = targetNow();
+    const st = state.frameStatus;
+    const statusImg = st && st.showing ? state.byId.get(st.showing) : null;
+    let pending;
+    if (target.reason === "converting") pending = true;
+    else if (!st || !target.id) pending = false;
+    else if (st.showing === target.id) pending = false;
+    else if (target.reason === "show-now") {
+      // A request older than the frame's last redraw was already handled; our copy of the
+      // schedule is just behind.
+      const requestedAt = Number(state.schedule.show_now && state.schedule.show_now.at_unix) || 0;
+      pending = requestedAt > (Number(st.at_unix) || 0);
+    } else pending = true;
+    const shown = pending ? (target.id ? state.byId.get(target.id) : null) : (statusImg || (target.id ? state.byId.get(target.id) : null));
+    return { target, st, statusImg, pending, shown };
+  }
+
   function renderNow() {
     const thumb = $("#now-thumb");
     const bg = $("#now-bg");
     const box = $("#now");
     const media = $(".now-media");
-    const target = targetNow();
-    const img = target.id ? state.byId.get(target.id) : null;
-    const st = state.frameStatus;
-    const pending = !!target.id && (target.reason === "converting" || (st && st.showing !== target.id));
+    const { target, st, statusImg, pending, shown } = heroState();
+    const img = shown;
     box.classList.toggle("pending", pending);
     media.dataset.empty = String(!img);
     if (!img && target.reason !== "converting") {
@@ -209,9 +258,9 @@
       let detail;
       if (target.reason === "converting") {
         detail = "Usually a minute or two";
-      } else if (st && st.showing && state.byId.get(st.showing)) {
+      } else if (statusImg) {
         const ageMin = Math.max(0, Math.round((nowUnix() - (Number(st.at_unix) || 0)) / 60));
-        detail = "Frame still shows " + state.byId.get(st.showing).name + " · reported " + (ageMin < 1 ? "just now" : ageMin + " min ago");
+        detail = "Frame still shows " + statusImg.name + " · reported " + (ageMin < 1 ? "just now" : ageMin + " min ago");
       } else {
         detail = "The frame checks every minute";
       }
@@ -242,9 +291,9 @@
     grid.innerHTML = "";
     $("#empty").hidden = state.images.length > 0;
     $("#gallery-count").textContent = state.images.length ? state.images.length + (state.images.length === 1 ? " picture" : " pictures") : "";
-    const target = targetNow();
-    const st = state.frameStatus;
-    const live = st && st.showing === target.id;
+    const { target, st, pending } = heroState();
+    const liveId = st && st.showing ? st.showing : target.id;
+    const sendingId = pending ? target.id : null;
     const pinned = new Set((state.schedule.pins || []).map((p) => p.image_id));
     const count = galleryColumns();
     const cols = [];
@@ -267,10 +316,15 @@
       pic.decoding = "async";
       pic.src = CFG.frameBase + img.thumb + "?v=" + (img.bin_sha256 || "").slice(0, 8);
       card.appendChild(pic);
-      if (img.id === target.id) {
+      if (sendingId && img.id === sendingId) {
         const b = document.createElement("span");
-        b.className = "badge" + (st && !live ? " sending" : "");
-        b.textContent = st && !live ? "Sending" : "On the frame";
+        b.className = "badge sending";
+        b.textContent = "Sending";
+        card.appendChild(b);
+      } else if (img.id === liveId) {
+        const b = document.createElement("span");
+        b.className = "badge";
+        b.textContent = "On the frame";
         card.appendChild(b);
       }
       if (pinned.has(img.id)) { const b = document.createElement("span"); b.className = "badge pinned"; b.textContent = "Pinned"; card.appendChild(b); }
@@ -315,6 +369,7 @@
     try {
       await relay("schedule", { schedule }, pin);
       state.schedule = schedule;
+      rememberLocalSchedule(schedule);
       render();
       toast(doneMsg || "Saved. The frame follows within about 5 minutes.", 4000);
       return true;
@@ -869,6 +924,7 @@
             const schedule = Object.assign({}, state.schedule, { show_now: { image_id: lastId, at_unix: nowUnix() } });
             await relay("schedule", { schedule }, pin);
             state.schedule = schedule;
+            rememberLocalSchedule(schedule);
           } catch (err) {
             toast("Uploaded, but couldn't request it on the frame: " + (err.message || err), 6000);
           }
