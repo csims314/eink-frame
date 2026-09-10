@@ -15,7 +15,6 @@
     images: [],
     byId: new Map(),
     detailId: null,
-    detailPreview: false,
     uploads: [], // {name, blob, dataUrl}
   };
 
