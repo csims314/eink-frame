@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generated_at": "2026-09-10T01:42:11Z",
+  "generated_at": "2026-09-10T01:45:04Z",
   "rotation": 90,
   "rotation_portrait": 0,
   "panel": {
@@ -9,7 +9,7 @@
     "bin_size": 960000
   },
   "settings_hash": "eab888b7ca42",
-  "count": 5,
+  "count": 4,
   "images": [
     {
       "id": "a1011aa1f8c3",
@@ -62,24 +62,6 @@
       "size": 960000,
       "thumb": "img/599aea27286b_thumb.jpg",
       "preview": "img/599aea27286b_preview.png",
-      "width": 1600,
-      "height": 1200
-    },
-    {
-      "id": "2df0e823d826",
-      "name": "Sep 9, 2026",
-      "caption": "",
-      "fit": "cover",
-      "orientation": "landscape",
-      "uploaded_at": "2026-09-10T01:22:53Z",
-      "source": "inbox/2df0e823d826.jpg",
-      "source_sha256": "2df0e823d826725a66f359f4e59ab979d3c95717534c38fda272c5ff170a9a79",
-      "settings_hash": "eab888b7ca42",
-      "bin": "img/2df0e823d826.bin",
-      "bin_sha256": "ffb79221861ea83b3051778d9d7779d27480038b97cbfbd40229c3c760ce2e57",
-      "size": 960000,
-      "thumb": "img/2df0e823d826_thumb.jpg",
-      "preview": "img/2df0e823d826_preview.png",
       "width": 1600,
       "height": 1200
     },
