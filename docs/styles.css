@@ -134,15 +134,15 @@ main { padding: 14px 14px 0; }
   margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; font-size: 0.9rem; font-weight: 600;
   background: color-mix(in srgb, var(--accent-2) 16%, var(--surface)); color: var(--ink); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent);
 }
-.gallery { columns: 2; column-gap: 10px; }
-@media (min-width: 640px) { .gallery { columns: 3; column-gap: 14px; } }
-@media (min-width: 1000px) { .gallery { columns: 4; column-gap: 16px; } }
+.gallery { display: flex; gap: 10px; align-items: flex-start; }
+.gallery-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 640px) { .gallery, .gallery-col { gap: 14px; } }
+@media (min-width: 1000px) { .gallery, .gallery-col { gap: 16px; } }
 .card {
-  position: relative; display: block; width: 100%; margin: 0 0 10px; padding: 0; border: 0; text-align: left;
+  position: relative; display: block; width: 100%; margin: 0; padding: 0; border: 0; text-align: left;
   background: var(--surface); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow);
-  break-inside: avoid; cursor: pointer; transform: translateZ(0); transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s;
+  cursor: pointer; transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s;
 }
-@media (min-width: 640px) { .card { margin-bottom: 14px; } }
 .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .card:active { transform: scale(0.98); }
 .card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--field); transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }

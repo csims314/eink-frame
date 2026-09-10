@@ -220,9 +220,7 @@
       return;
     }
     $("#now-label").textContent = "Now showing";
-    const due = target;
-    const why = { "pin-date": "pinned", "pin-slot": "pinned", "show-now": "requested", single: "stays on" }[due.reason];
-    $("#now-name").textContent = img.name + (why ? " · " + why : "");
+    $("#now-name").textContent = img.name;
     const ids = state.images.map((i) => i.id);
     const next = S.nextChange(state.schedule, ids, nowUnix(), state.schedule.tz_name);
     if (next) {
@@ -233,6 +231,13 @@
     }
   }
 
+  function galleryColumns() {
+    const w = window.innerWidth;
+    return w < 640 ? 2 : w < 1000 ? 3 : 4;
+  }
+
+  // Masonry done by hand: cards go into the shortest column (by aspect ratio), which works the
+  // same in every browser, unlike CSS multi-column layouts.
   function renderGallery() {
     const grid = $("#gallery");
     grid.innerHTML = "";
@@ -242,6 +247,16 @@
     const st = state.frameStatus;
     const live = st && st.showing === target.id;
     const pinned = new Set((state.schedule.pins || []).map((p) => p.image_id));
+    const count = galleryColumns();
+    const cols = [];
+    const heights = [];
+    for (let i = 0; i < count; i++) {
+      const col = document.createElement("div");
+      col.className = "gallery-col";
+      grid.appendChild(col);
+      cols.push(col);
+      heights.push(0);
+    }
     for (const img of state.images) {
       const portrait = img.orientation ? img.orientation === "portrait" : (img.height > img.width);
       const card = document.createElement("button");
@@ -249,8 +264,8 @@
       card.className = "card" + (portrait ? " portrait" : "");
       card.dataset.id = img.id;
       const pic = document.createElement("img");
-      pic.loading = "lazy";
       pic.alt = img.name;
+      pic.decoding = "async";
       pic.src = CFG.frameBase + img.thumb + "?v=" + (img.bin_sha256 || "").slice(0, 8);
       card.appendChild(pic);
       if (img.id === target.id) {
@@ -265,7 +280,10 @@
       name.textContent = img.name;
       card.appendChild(name);
       card.addEventListener("click", () => openImage(img.id));
-      grid.appendChild(card);
+      let shortest = 0;
+      for (let i = 1; i < heights.length; i++) if (heights[i] < heights[shortest]) shortest = i;
+      cols[shortest].appendChild(card);
+      heights[shortest] += portrait ? 4 / 3 : 3 / 4;
     }
   }
 
@@ -788,6 +806,10 @@
     $("#upload-submit").disabled = state.uploads.length === 0;
   }
 
+  function baseName(fileName) {
+    return String(fileName || "").replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "Picture";
+  }
+
   function blobToDataUrl(blob) {
     return new Promise((resolve, reject) => {
       const r = new FileReader();
@@ -809,6 +831,12 @@
           toast(err.message || String(err), 4000);
         }
       }
+      // Suggest the first picture's file name; the user can overwrite it.
+      const nameField = $("#upload-caption");
+      if (state.uploads.length && (!nameField.value.trim() || nameField.value === state.autoName)) {
+        state.autoName = baseName(state.uploads[0].name);
+        nameField.value = state.autoName;
+      }
       renderUploadList();
     });
     $("#form-upload").addEventListener("submit", async (e) => {
@@ -829,11 +857,11 @@
           text.textContent = "Uploading " + (done + 1) + " of " + state.uploads.length;
           bar.style.width = Math.round((done / state.uploads.length) * 100) + "%";
           const base64 = item.dataUrl.split(",")[1];
-          // The typed name is the label; with several pictures they get numbered. Otherwise a
-          // readable date stands in for the phone's random file name.
-          let name = typedName;
-          if (name && state.uploads.length > 1) name += " " + (done + 1);
-          if (!name) name = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + (state.uploads.length > 1 ? " (" + (done + 1) + ")" : "");
+          // The typed name is the label. Left as suggested, each picture keeps its own file
+          // name; typed by hand with several pictures, they get numbered.
+          let name;
+          if (!typedName || typedName === state.autoName) name = baseName(item.name);
+          else name = state.uploads.length > 1 ? typedName + " " + (done + 1) : typedName;
           const res = await relay("upload", { name, caption: "", fit: "cover", orientation: item.orientation || "landscape", mime: "image/jpeg", data: base64 }, pin);
           if (res.id) newIds.add(res.id);
           done++;
@@ -888,7 +916,12 @@
     wireCrop();
     wireUpload();
     $("#btn-refresh").addEventListener("click", () => { toast("Refreshing…", 1200); load(); });
-    $("#btn-upload").addEventListener("click", () => { prefillPins(); renderUploadList(); openSheet("#dlg-upload"); });
+    $("#btn-upload").addEventListener("click", () => {
+      prefillPins();
+      if (!state.uploads.length) { $("#upload-caption").value = ""; state.autoName = ""; }
+      renderUploadList();
+      openSheet("#dlg-upload");
+    });
     $("#btn-schedule").addEventListener("click", () => { if (!state.schedule) return; prefillPins(); openSchedule(); });
     $("#btn-settings").addEventListener("click", () => { if (!state.settings) return; prefillPins(); openSettings(); });
     document.addEventListener("visibilitychange", () => {
@@ -896,6 +929,11 @@
       if (watch) watchCheck(); else if (state.manifest) load();
     });
     window.addEventListener("pageshow", (e) => { if (e.persisted && state.manifest) load(); });
+    let lastCols = galleryColumns();
+    window.addEventListener("resize", () => {
+      const cols = galleryColumns();
+      if (cols !== lastCols && state.manifest) { lastCols = cols; renderGallery(); }
+    });
     // Status: every 10 s while the frame is catching up, otherwise once a minute. One check at a
     // time, and a failed or slow request never blocks the next one.
     let ticking = false;
